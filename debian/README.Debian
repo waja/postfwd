@@ -1,5 +1,17 @@
 postfwd for Debian
 ------------------
 
+1. PROVIDE A CONFIGFILE
+-----------------------
+
+Please provide a config file, usualy /etc/postfix/postfwd.cf. Examples are
+located in /usr/share/doc/postfwd/examples/.
+
+2. AUTOMATIC STARTUP
+--------------------
+
+In order to avoid the startup of the daemon on an unconfigured machine,
+automatic startup, on boot, is disabled by default. To enable it just edit the
+file /etc/default/postfwd and set the "startup" variable to 1.
 
  -- Jan Wagner <waja@cyconet.org>  Mon, 10 Mar 2008 22:37:44 +0100
