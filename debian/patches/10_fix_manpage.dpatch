@@ -1,0 +1,21 @@
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 10_fix_manpage.dpatch by Jan Wagner <waja@cyconet.org>
+##
+## DP: Fix manpage section
+
+@DPATCH@
+
+diff -Nur postfwd-1.03.orig/man/man1/postfwd.1 postfwd-1.03/man/man1/postfwd.1
+--- postfwd-1.03.orig/man/man1/postfwd.1        2007-10-29 09:29:15.000000000 +0100
++++ postfwd-1.03/man/man1/postfwd.1     2008-03-12 01:10:48.000000000 +0100
+@@ -128,8 +128,8 @@
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+-.IX Title "POSTFWD 1"
+-.TH POSTFWD 1 "2007-10-29" "perl v5.8.5" "User Contributed Perl Documentation"
++.IX Title "POSTFWD 8"
++.TH POSTFWD 8 "2007-10-29" "perl v5.8.5" "User Contributed Perl Documentation"
+ .SH "NAME"
+ postfwd \- postfix firewall daemon
+ .SH "SYNOPSIS"

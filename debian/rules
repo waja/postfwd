@@ -1,0 +1,47 @@
+#!/usr/bin/make -f
+# written by Jan Wagner <waja@cyconet.org>
+#
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+include /usr/share/dpatch/dpatch.make
+
+build: patch-stamp
+
+clean: unpatch
+	dh_testdir
+	dh_testroot
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+
+	install -D -m 644 sbin/postfwd debian/postfwd/usr/sbin/postfwd
+	install -d -m 0755 debian/postfwd/usr/share/doc/postfwd/examples/
+	cp debian/example-cfg*.txt debian/postfwd/usr/share/doc/postfwd/examples/
+
+# Build architecture-independent files here.
+binary-indep: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs doc/CHANGELOG
+	dh_installdocs tools
+	dh_installinit -- defaults 19 21
+	dh_installman man/man1/postfwd.1
+	dh_link
+	dh_compress
+	dh_fixperms
+	dh_perl
+	dh_installdeb
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+# Build architecture-dependent files here.
+binary-arch: build install
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install

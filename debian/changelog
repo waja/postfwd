@@ -1,0 +1,5 @@
+postfwd (1.03-1) unstable; urgency=low
+
+  * Initial release (Closes: #470356).
+
+ -- Jan Wagner <waja@cyconet.org>  Mon, 10 Mar 2008 22:37:44 +0100
