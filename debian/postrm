@@ -30,11 +30,11 @@ case "$1" in
 						[ "$USERID" -le "$LAST_SYSTEM_UID" ] && \
 							[ -x /usr/sbin/deluser ]; then
 								deluser --quiet $NUSER || true
-							# And then remove the group
-							GROUPID=`getent group $NGROUP | cut -f 3 -d ':'`
-							if [ -n "$GROUPID" ] && [ -x /usr/sbin/delgroup ] ;  then
-								delgroup --quiet $NGROUP || true
-							fi
+								# And then remove the group
+								GROUPID=`getent group $NGROUP | cut -f 3 -d ':'`
+								if [ -n "$GROUPID" ] && [ -x /usr/sbin/delgroup ] ;  then
+									delgroup --quiet $NGROUP || true
+								fi
 					fi
 				fi
 			fi
