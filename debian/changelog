@@ -1,5 +1,5 @@
-postfwd (1.10pre7c-1) unstable; urgency=low
+postfwd (1.10pre7c-1) experimental; urgency=low
 
   * Initial release (Closes: #470356).
 
- -- Jan Wagner <waja@cyconet.org>  Mon, 12 May 2008 22:43:55 +0200
+ -- Jan Wagner <waja@cyconet.org>  Sat, 31 May 2008 22:07:08 +0200

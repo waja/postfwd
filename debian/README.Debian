@@ -6,6 +6,7 @@ postfwd for Debian
 
 Please provide a config file, usualy /etc/postfix/postfwd.cf. Examples are
 located in /usr/share/doc/postfwd/examples/.
+An other can be found at: http://hege.li/howto/spam/etc/postfwd/postfwd.conf
 
 2. AUTOMATIC STARTUP
 --------------------
