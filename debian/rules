@@ -15,7 +15,6 @@ install: build
 	dh_testdir
 	dh_testroot
 	dh_clean -k
-	dh_installdirs
 
 	install -D -m 644 sbin/postfwd debian/postfwd/usr/sbin/postfwd
 	install -d -m 0755 debian/postfwd/usr/share/doc/postfwd/examples/
