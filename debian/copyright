@@ -6,7 +6,7 @@ It was downloaded from <http://www.postfwd.org/>
 Upstream Author: Jan Peter Kessler <info@postfwd.org>
 
 Copyright: (c) 2007, Jan Peter Kessler, All rights reserved.
-	   (c) 2008, Henrik Krohns <hege@hege.li>
+
 License:
 
     Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,10 @@ License:
     WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
     OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Different copyrights/licenses:
+
+    debian/example-cfg2.txt: (c) 2008, Henrik Krohns <hege@hege.li>
 
 The Debian packaging is (C) 2008 Jan Wagner <waja@cyconet.org> and
 is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
