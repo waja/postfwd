@@ -1,3 +1,9 @@
+postfwd (1.10pre7c-2) UNRELEASED; urgency=low
+
+  * Updating standards version to 3.8.0, no changes needed
+
+ -- Jan Wagner <waja@cyconet.org>  Mon, 02 Jun 2008 23:13:53 +0200
+
 postfwd (1.10pre7c-1) experimental; urgency=low
 
   * Initial release (Closes: #470356).
