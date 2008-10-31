@@ -2,7 +2,7 @@
 # check for more recent versions!
 
 ###
-### Example config for postfwd 1.10pre8+
+### Example config for postfwd 1.10pre7+
 ###
 
 ## Check DNS whitelists, maybe we don't need more checks
@@ -31,7 +31,7 @@ id=REJECT_HELO_NODNS; \
 
 id=REJECT_RBL_ZEN; \
   rbl=zen.spamhaus.org; \
-  action=REJECT Blocked - contact postmaster@example.net for help - DNSBL [$$dnsbltext]
+  action=REJECT Blocked - contact postmaster@example.net for help - zen.spamhaus.org RBL
 
 ## Check other DNSBLs in parallel
 
@@ -50,11 +50,11 @@ id=REJECT_RBL_ZEN; \
 
 id=EVAL_DNSBLS; \
   &&DNSBLS; rblcount=all; \
-  action=set(HIT_rbls=$$rblcount,HIT_dtxt=$$dnsbltext)
+  action=set(HIT_rbls=$$rblcount)
 
 id=REJECT_RBL_MULTI; \
   HIT_rbls>=2; \
-  action=REJECT Blocked - contact postmaster@example.net for help - Multiple DNSBLs [$$HIT_dtxt]
+  action=REJECT Blocked - contact postmaster@example.net for help - Multiple DNSBLs
 
 ## Check RHSBLs if there wasn't enough DNSBLs hit
 
@@ -73,33 +73,33 @@ id=REJECT_RBL_MULTI; \
 
 id=EVAL_RHSBLS; \
   &&RHSBLS_REVERSE; &&RHSBLS_SENDER; rhsblcount=all; \
-  action=set(HIT_rhsbls=$$rhsblcount,HIT_rtxt=$$dnsbltext)
+  action=set(HIT_rhsbls=$$rhsblcount)
 
 id=REJECT_RHSBL_MULTI; \
   HIT_rhsbls>=2; \
-  action=REJECT Blocked - contact postmaster@example.net for help - Multiple RHSBLs [$$HIT_rtxt]
+  action=REJECT Blocked - contact postmaster@example.net for help - Multiple RHSBLs
 
 ## See if we get any combined hits from rules before
 
 id=REJECT_RBL_RHSBL; \
   HIT_rbls>=1; HIT_rhsbls>=1; \
-  action=REJECT Blocked - contact postmaster@example.net for help - RHSBL and DNSBL [$$HIT_rtxt] [$$HIT_dtxt]
+  action=REJECT Blocked - contact postmaster@example.net for help - RHSBL and DNSBL
 
 id=REJECT_RBL_HELO; \
   HIT_rbls>=1; HIT_helo==1; \
-  action=REJECT Blocked - contact postmaster@example.net for help - DNSBL [$$HIT_dtxt] and suspicious HELO [$$helo_name]
+  action=REJECT Blocked - contact postmaster@example.net for help - DNSBL and suspicious HELO [$$helo_name]
 
 id=REJECT_RBL_NODNS; \
   HIT_rbls>=1; HIT_nodns==1; \
-  action=REJECT Blocked - contact postmaster@example.net for help - DNSBL [$$HIT_dtxt] and missing reverse DNS [$$client_address]
+  action=REJECT Blocked - contact postmaster@example.net for help - DNSBL and missing reverse DNS [$$client_address]
 
 id=REJECT_RHSBL_HELO; \
   HIT_rhsbls>=1; HIT_helo==1; \
-  action=REJECT Blocked - contact postmaster@example.net for help - RHSBL [$$HIT_rtxt] and suspicious HELO [$$helo_name]
+  action=REJECT Blocked - contact postmaster@example.net for help - RHSBL and suspicious HELO [$$helo_name]
 
 id=REJECT_RHSBL_NODNS; \
   HIT_rhsbls>=1; HIT_nodns==1; \
-  action=REJECT Blocked - contact postmaster@example.net for help - RHSBL [$$HIT_rtxt] and missing reverse DNS [$$client_address]
+  action=REJECT Blocked - contact postmaster@example.net for help - RHSBL and missing reverse DNS [$$client_address]
 
 ## Finally greylist all lesser hits.
 ##

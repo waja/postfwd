@@ -19,6 +19,7 @@
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 NAME=postfwd
 DAEMON=/usr/sbin/${NAME}
+PIDFILE=/var/run/$NAME.pid
 DESC=postfwd
 
 test -x $DAEMON || exit 0
@@ -70,19 +71,17 @@ case "$1" in
 	echo -n "Starting $DESC: "
         start-stop-daemon --start --quiet \
                 --name ${RUNAS} \
-                --exec $DAEMON -- ${ARGS} --daemon --file=${CONF} --interface=${INET} --port=${PORT} --user=${RUNAS} --group=${RUNAS}
+                --exec $DAEMON -- ${ARGS} --daemon --file=${CONF} --interface=${INET} --port=${PORT} --user=${RUNAS} --group=${RUNAS} --pidfile=$PIDFILE
 	echo "$NAME."
 	;;
   stop)
 	echo -n "Stopping $DESC: "
-        start-stop-daemon --stop --quiet --oknodo \
-                --exec $DAEMON
+	start-stop-daemon --stop --quiet --oknodo --pidfile $PIDFILE && rm -rf $PIDFILE
         echo "$NAME."
-        rm -f /var/run/$NAME.pid
 	;;
   reload)
 	echo "Reloading $DESC configuration files."
-		for pid in `pidof ${NAME}`; do kill -HUP ${pid}; done ;
+		kill -HUP $(cat $PIDFILE)
 	;;
   restart|force-reload)
 	echo -n "Restarting $DESC (incl. cache): "
