@@ -10,7 +10,7 @@ Standards-Version: 3.8.0
 
 Package: postfwd
 Architecture: all
-Depends: ${perl:Depends}, ${misc:Depends}, adduser, libnet-cidr-lite-perl, libnet-dns-async-perl, libnet-server-perl
+Depends: ${perl:Depends}, ${misc:Depends}, adduser, libnet-dns-perl, libnet-server-perl
 Description: Postfix policyd to combine complex restrictions in a ruleset
  Postfwd is written in perl to combine complex postfix restrictions in a
  ruleset similar to those of the most firewalls. The program uses the postfix

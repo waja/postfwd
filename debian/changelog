@@ -1,3 +1,22 @@
+postfwd (1.10pre8b-1) unstable; urgency=low
+
+  * new upstream release
+    - Net::CIDR::Lite is not required any longer
+    - Net::DNS::Async is no longer used
+    - changed Net::Server behaviour to ignore syslog errors
+    - --shortlog is now default behaviour (use -v to see more)
+    - days=Wed now means exactly Wednesday
+    - disabled fallback to synchronous dns on timed out rbls
+    - new item "rhsbl_helo" allows to check helo against rhsbls
+    - the new variable $$request_hits contains a list of all matching ruleids
+    - the new variable $$dnsbltext allows access to txt records of rbls
+    - new options --no-rulestats and --nodnslog
+    - ttls of the dns responses override --cache-rbl-timeout when bigger
+  * drop dependency of libnet-cidr-lite-perl and libnet-dns-async-perl
+  * add dependency of libnet-dns-perl
+
+ -- Jan Wagner <waja@cyconet.org>  Thu, 19 Feb 2009 22:39:09 +0100
+
 postfwd (1.10pre7c-3) unstable; urgency=low
 
   * implement machine-interpretable copyright file
