@@ -1,8 +1,21 @@
-postfwd (1.10pre8b-2) UNRELEASED; urgency=low
+postfwd (1.13-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * new upstream release
+    - enabled dns cache for sender(ns|mx) and helo address
+    - new options --dns_max_ns_lookups and --dns_max_mx_lookups
+    - new items sender_ns_names and sender_ns_addrs
+    - new items sender_mx_names and sender_mx_addrs
+    - new item helo_address, please see docs for more
+    - added --proto switch, to enable the use of unix domain sockets
+    - added command-line options --kill and --reload
+    - dnsbl txt lookups only for dnsbls with at least one a record
+    - small performance improvement
+    - ask() action allows to use another policy service
+    - new options --noidlestats and --norulelog
+  * install postfwd.cf.sample, was renamed upstream
+  * leave hint about documentation in README.Debian
 
- -- Jan Wagner <waja@cyconet.org>  Thu, 19 Feb 2009 22:57:47 +0100
+ -- Jan Wagner <waja@cyconet.org>  Sun, 28 Jun 2009 13:27:18 +0200
 
 postfwd (1.10pre8b-1) unstable; urgency=low
 

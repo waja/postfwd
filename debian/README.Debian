@@ -9,6 +9,10 @@ located in /usr/share/doc/postfwd/examples/.
 An other can be found at http://hege.li/howto/spam/etc/postfwd/postfwd.conf
 and is provided as example-cfg2.txt.
 
+A quickstart guide is available at http://www.postfwd.org/quick.html and the
+online documentation at http://www.postfwd.org/doc.html, the offline version
+can be viewed with 'postfix -m'.
+
 2. AUTOMATIC STARTUP
 --------------------
 
