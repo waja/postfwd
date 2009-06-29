@@ -1,6 +1,9 @@
-postfwd (1.13-1) unstable; urgency=low
+postfwd (1.14-1) unstable; urgency=low
 
   * new upstream release
+    - new compare operators
+    - added --nodaemon option
+    - perform non dns items first
     - enabled dns cache for sender(ns|mx) and helo address
     - new options --dns_max_ns_lookups and --dns_max_mx_lookups
     - new items sender_ns_names and sender_ns_addrs
@@ -13,9 +16,9 @@ postfwd (1.13-1) unstable; urgency=low
     - ask() action allows to use another policy service
     - new options --noidlestats and --norulelog
   * install postfwd.cf.sample, was renamed upstream
-  * leave hint about documentation in README.Debian
+  * leave hints about documentation and config verification in README.Debian
 
- -- Jan Wagner <waja@cyconet.org>  Sun, 28 Jun 2009 13:27:18 +0200
+ -- Jan Wagner <waja@cyconet.org>  Mon, 29 Jun 2009 23:49:17 +0200
 
 postfwd (1.10pre8b-1) unstable; urgency=low
 

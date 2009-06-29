@@ -13,7 +13,45 @@ A quickstart guide is available at http://www.postfwd.org/quick.html and the
 online documentation at http://www.postfwd.org/doc.html, the offline version
 can be viewed with 'postfix -m'.
 
-2. AUTOMATIC STARTUP
+2. VERIFY CONFIG
+----------------
+
+How interpret the parser your rules, you can check with:
+
+# postfwd -f /etc/postfix/postfwd.cf -C -v
+
+Check your rules against sample request:
+
+# cat request.sample | postfwd -f /etc/postfix/postfwd.cf -L
+
+# cat request.sample
+
+------ snip -------
+ccert_fingerprint=
+size=64063
+helo_name=english-breakfast.cloud9.net
+reverse_client_name=english-breakfast.cloud9.net
+queue_id=
+encryption_cipher=
+encryption_protocol=
+etrn_domain=
+ccert_subject=
+request=smtpd_access_policy
+protocol_state=RCPT
+recipient=someone@domain.local
+instance=6748.46adf3f8.62156.0
+protocol_name=ESMTP
+encryption_keysize=0
+recipient_count=0
+ccert_issuer=
+sender=owner-postfix-users@postfix.org
+client_name=english-breakfast.cloud9.net
+client_address=168.100.1.7
+------ snip -------
+
+Samples can be taken into the logfile when starting the daemon with "-vv"
+
+3. AUTOMATIC STARTUP
 --------------------
 
 In order to avoid the startup of the daemon on an unconfigured machine,
