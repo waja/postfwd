@@ -1,3 +1,9 @@
+postfwd (1.14-2) UNRELEASED; urgency=low
+
+  * add "Copyright" to all copyrights in debian/copyright
+
+ -- Jan Wagner <waja@cyconet.org>  Sun, 26 Jul 2009 01:34:03 +0200
+
 postfwd (1.14-1) unstable; urgency=low
 
   * new upstream release
