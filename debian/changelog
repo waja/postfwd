@@ -1,6 +1,14 @@
-postfwd (1.14-2) UNRELEASED; urgency=low
+postfwd (1.16-1) UNRELEASED; urgency=low
 
-  * add "Copyright" to all copyrights in debian/copyright
+  * NEW upstream release
+    - documentation fixed
+    - configuration parser improvements
+    - option --reload (HUP signal) now reloads config, if the file is unchanged
+    - redirect syslog to stdout for --kill, --reload and --showconfig
+    - new rcpt() command counts recipients for rate limits
+    - helo_address, and sender_(ns|mx)_addrs can now be csv items
+    - items may now be retrieved from files using "item=file:/some/where"
+  * Add "Copyright" to all copyrights in debian/copyright
 
  -- Jan Wagner <waja@cyconet.org>  Sun, 26 Jul 2009 01:34:03 +0200
 
