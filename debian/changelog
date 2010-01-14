@@ -1,4 +1,4 @@
-postfwd (1.16-1) UNRELEASED; urgency=low
+postfwd (1.16-1) unstable; urgency=low
 
   * NEW upstream release
     - documentation fixed
@@ -9,8 +9,10 @@ postfwd (1.16-1) UNRELEASED; urgency=low
     - helo_address, and sender_(ns|mx)_addrs can now be csv items
     - items may now be retrieved from files using "item=file:/some/where"
   * Add "Copyright" to all copyrights in debian/copyright
+  * Bump standards version to 3.8.3 (no changes needed)
+  * Fix speeling errors in debian/README.Debian
 
- -- Jan Wagner <waja@cyconet.org>  Sun, 26 Jul 2009 01:34:03 +0200
+ -- Jan Wagner <waja@cyconet.org>  Thu, 14 Jan 2010 19:32:26 +0100
 
 postfwd (1.14-1) unstable; urgency=low
 

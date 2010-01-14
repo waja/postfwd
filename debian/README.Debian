@@ -4,9 +4,9 @@ postfwd for Debian
 1. PROVIDE A CONFIGFILE
 -----------------------
 
-Please provide a config file, usualy /etc/postfix/postfwd.cf. Examples are
+Please provide a config file, usually /etc/postfix/postfwd.cf. Examples are
 located in /usr/share/doc/postfwd/examples/.
-An other can be found at http://hege.li/howto/spam/etc/postfwd/postfwd.conf
+Another can be found at http://hege.li/howto/spam/etc/postfwd/postfwd.conf
 and is provided as example-cfg2.txt.
 
 A quickstart guide is available at http://www.postfwd.org/quick.html and the
