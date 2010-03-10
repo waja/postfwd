@@ -5,7 +5,7 @@ Maintainer: Jan Wagner <waja@cyconet.org>
 Build-Depends: debhelper (>= 5)
 Homepage: http://www.postfwd.org/
 Vcs-Browser: https://scm.uncompleted.org/projects/debian/repository/show/postfwd
-Vcs-Svn: https://scm.uncompleted.org/svn/debian/postfwd
+Vcs-Svn: https://scm.uncompleted.org/svn/debian/postfwd/trunk
 Standards-Version: 3.8.4
 
 Package: postfwd
