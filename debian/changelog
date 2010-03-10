@@ -1,10 +1,10 @@
-postfwd (1.16-2) UNRELEASED; urgency=low
+postfwd (1.16-2) unstable; urgency=low
 
   * Bump Standards-Version to 3.8.4, no changes needed
   * Migrate Vcs-Fields over to scm.uncompleted.org
   * Add 1.0 to debian/source/format
 
- -- Jan Wagner <waja@cyconet.org>  Thu, 14 Jan 2010 19:54:06 +0100
+ -- Jan Wagner <waja@cyconet.org>  Wed, 10 Mar 2010 12:35:57 +0100
 
 postfwd (1.16-1) unstable; urgency=low
 
