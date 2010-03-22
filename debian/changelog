@@ -1,4 +1,4 @@
-postfwd (1.17-1) UNRELEASED; urgency=low
+postfwd (1.17-1) unstable; urgency=low
 
   * New upstream release
     - Net::DNS internal errors will now be handled gracefully
@@ -6,7 +6,7 @@ postfwd (1.17-1) UNRELEASED; urgency=low
       100
     - Fixed variable substitution when the '=' operator is used
 
- -- Jan Wagner <waja@cyconet.org>  Wed, 10 Mar 2010 12:37:45 +0100
+ -- Jan Wagner <waja@cyconet.org>  Mon, 22 Mar 2010 09:02:31 +0100
 
 postfwd (1.16-2) unstable; urgency=low
 
