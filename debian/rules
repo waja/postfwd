@@ -24,7 +24,7 @@ install: build
 binary-indep: build install
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs doc/CHANGELOG
+	dh_installchangelogs doc/CHANGELOG doc/postfwd2.CHANGELOG
 	dh_installdocs tools
 	dh_installexamples etc/postfwd.cf.sample debian/example-cfg*
 	dh_installinit -- defaults 19 21
