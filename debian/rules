@@ -19,12 +19,13 @@ install: build
 	dh_clean -k
 
 	install -D -m 644 sbin/postfwd debian/postfwd/usr/sbin/postfwd
+	install -D -m 644 sbin/postfwd2 debian/postfwd/usr/sbin/postfwd2
 
 # Build architecture-independent files here.
 binary-indep: build install
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs doc/CHANGELOG doc/postfwd2.CHANGELOG
+	dh_installchangelogs doc/CHANGELOG
 	dh_installdocs tools
 	dh_installexamples etc/postfwd.cf.sample debian/example-cfg*
 	dh_installinit -- defaults 19 21
