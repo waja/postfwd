@@ -11,6 +11,7 @@ Standards-Version: 3.8.4
 Package: postfwd
 Architecture: all
 Depends: ${perl:Depends}, ${misc:Depends}, adduser, libnet-dns-perl, libnet-server-perl
+Conflicts: postfwd2
 Description: Postfix policyd to combine complex restrictions in a ruleset
  Postfwd is written in perl to combine complex postfix restrictions in a
  ruleset similar to those of the most firewalls. The program uses the postfix
@@ -18,3 +19,16 @@ Description: Postfix policyd to combine complex restrictions in a ruleset
  message has been accepted. It allows you to choose an action (e.g. reject,
  dunno) for a combination of several smtp parameters (like sender and recipient
  address, size or the client's TLS fingerprint).
+#
+Package: postfwd2
+Architecture: all
+Depends: ${perl:Depends}, ${misc:Depends}, adduser, libnet-dns-perl, libnet-server-perl
+Conflicts: postfwd
+Description: Preforking postfix policyd to combine complex restrictions in a ruleset
+ Postfwd is written in perl to combine complex postfix restrictions in a
+ ruleset similar to those of the most firewalls. The program uses the postfix
+ policy delegation protocol to control access to the mail system before a
+ message has been accepted. It allows you to choose an action (e.g. reject,
+ dunno) for a combination of several smtp parameters (like sender and recipient
+ address, size or the client's TLS fingerprint).
+
