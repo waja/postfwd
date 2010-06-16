@@ -1,0 +1,100 @@
+#! /bin/sh
+#		Written by Miquel van Smoorenburg <miquels@cistron.nl>.
+#		Modified for Debian
+#		by Ian Murdock <imurdock@gnu.ai.mit.edu>.
+#
+# Version:	@(#)skeleton  1.9  26-Feb-2001  miquels@cistron.nl
+# /etc/init.d/postfwd: v1 2008/03/12 Jan Wagner <waja@cyconet.org>
+
+### BEGIN INIT INFO
+# Provides: postfwd
+# Required-Start: $local_fs $network $remote_fs $syslog
+# Required-Stop: $local_fs $network $remote_fs $syslog
+# Default-Start:  2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start and stop the postfw daemon
+# Description: a Perl policy daemon for the Postfix MTA
+### END INIT INFO
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+NAME=postfwd
+DAEMON=/usr/sbin/${NAME}
+PIDFILE=/var/run/$NAME.pid
+DESC=postfwd
+
+test -x $DAEMON || exit 0
+
+not_configured () {
+        echo "#### WARNING ####"
+        echo "${NAME} won't be started/stopped unless it is configured."
+        echo "If you want to start ${NAME} as daemon, see /etc/default/${NAME}."
+        echo "#################"
+        exit 0
+}
+
+no_configfile () {
+	echo "#### WARNING ####"
+	echo "${NAME} won't be started/stopped unless a rules file is provided at $CONF."
+	echo "#################"
+	exit 0
+}
+
+# check if postfwd is configured or not
+if [ -f "/etc/default/$NAME" ]
+then
+        . /etc/default/$NAME
+        if [ "$STARTUP" != "1" ]
+        then
+                not_configured
+        fi
+else
+        not_configured
+fi
+
+# check if rules file is there
+if [ ! -f $CONF ]
+then
+	no_configfile
+fi
+
+# Check whether we have to drop privileges.
+if [ -n "$RUNAS" ]; then
+        if ! getent passwd "$RUNAS" >/dev/null; then
+                RUNAS=""
+        fi
+fi
+
+set -e
+
+case "$1" in
+  start)
+	echo -n "Starting $DESC: "
+        start-stop-daemon --start --quiet \
+                --name ${RUNAS} \
+                --exec $DAEMON -- ${ARGS} --daemon --file=${CONF} --interface=${INET} --port=${PORT} --user=${RUNAS} --group=${RUNAS} --pidfile=$PIDFILE
+	echo "$NAME."
+	;;
+  stop)
+	echo -n "Stopping $DESC: "
+	start-stop-daemon --stop --quiet --oknodo --pidfile $PIDFILE && rm -rf $PIDFILE
+        echo "$NAME."
+	;;
+  reload)
+	echo "Reloading $DESC configuration files."
+		kill -HUP $(cat $PIDFILE)
+	;;
+  restart|force-reload)
+	echo -n "Restarting $DESC (incl. cache): "
+	        $0 stop
+        	sleep 1
+	        $0 start
+	echo "$NAME."
+	;;
+  *)
+	N=/etc/init.d/$NAME
+	echo "Usage: $N {start|stop|restart|reload|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0
