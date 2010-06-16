@@ -1,6 +1,6 @@
 postfwd (1.18-2) UNRELEASED; urgency=low
 
-  * NOT RELEASED YET
+  * Add dpatch infrastructure
 
  -- Jan Wagner <waja@cyconet.org>  Thu, 29 Apr 2010 08:49:20 +0200
 
