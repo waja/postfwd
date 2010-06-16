@@ -18,11 +18,6 @@
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 NAME=postfwd
-DAEMON=/usr/sbin/${NAME}
-PIDFILE=/var/run/$NAME.pid
-DESC=postfwd
-
-test -x $DAEMON || exit 0
 
 not_configured () {
         echo "#### WARNING ####"
@@ -36,6 +31,13 @@ no_configfile () {
 	echo "#### WARNING ####"
 	echo "${NAME} won't be started/stopped unless a rules file is provided at $CONF."
 	echo "#################"
+	exit 0
+}
+
+wrong_binary () {
+	echo "#### ERROR ####"
+	echo "${BINARY} is not a valid binary"
+	echo "###############"
 	exit 0
 }
 
@@ -58,11 +60,24 @@ then
 fi
 
 # Check whether we have to drop privileges.
-if [ -n "$RUNAS" ]; then
+if [ -n "$RUNAS" ]
+then
         if ! getent passwd "$RUNAS" >/dev/null; then
                 RUNAS=""
         fi
 fi
+
+if ! [ ${BINARY} == "postfwd" -o ${BINARY} == "postfwd2" ]
+then
+        wrong_binary
+fi
+
+NAME=${BINARY}
+DAEMON=/usr/sbin/${NAME}
+PIDFILE=/var/run/$NAME.pid
+DESC=postfwd
+
+test -x $DAEMON || exit 0
 
 set -e
 
