@@ -3,8 +3,6 @@
 # Set to '1' to enable startup (daemon mode)
 STARTUP=0
 
-# using 'postfwd' or 'postfwd2'?
-BINARY=postfwd
 # Config file
 CONF=/etc/postfix/postfwd.cf
 # IP where listen to
