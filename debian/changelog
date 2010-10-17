@@ -1,10 +1,10 @@
-postfwd (1.18-2) UNRELEASED; urgency=low
+postfwd (1.18-2) unstable; urgency=low
 
   * Add dpatch infrastructure
   * Add 01_postfwd2.dpatch to ship postfwd2 script and changelog
   * Provide update-alternatives for choosing the postfwd variant
 
- -- Jan Wagner <waja@cyconet.org>  Thu, 29 Apr 2010 08:49:20 +0200
+ -- Jan Wagner <waja@cyconet.org>  Sun, 17 Oct 2010 15:18:39 +0200
 
 postfwd (1.18-1) unstable; urgency=low
 
