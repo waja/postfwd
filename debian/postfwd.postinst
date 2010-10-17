@@ -54,4 +54,6 @@ case "$1" in
 		;;
 esac
 
+update-alternatives --install /usr/sbin/postfwd postfwd /usr/sbin/postfwd1
+update-alternatives --install /usr/sbin/postfwd postfwd /usr/sbin/postfwd2
 #DEBHELPER#

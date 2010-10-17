@@ -18,7 +18,7 @@ install: build
 	dh_testroot
 	dh_clean -k
 
-	install -D -m 644 sbin/postfwd debian/postfwd/usr/sbin/postfwd
+	install -D -m 644 sbin/postfwd debian/postfwd/usr/sbin/postfwd1
 	install -D -m 644 sbin/postfwd2 debian/postfwd/usr/sbin/postfwd2
 
 # Build architecture-independent files here.
@@ -30,7 +30,7 @@ binary-indep: build install
 	dh_installexamples etc/postfwd.cf.sample debian/example-cfg*
 	dh_installinit -- defaults 19 21
 	dh_installman man/man8/postfwd.8
-	dh_link usr/share/man/man1/postfwd.1.gz usr/share/man/man1/postfwd2.1.gz
+	# dh_link usr/share/man/man1/postfwd.1.gz usr/share/man/man1/postfwd2.1.gz
 	dh_compress
 	dh_fixperms
 	dh_perl

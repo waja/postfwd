@@ -62,6 +62,6 @@ file /etc/default/postfwd and set the "startup" variable to 1.
 ----------------------------------------
 
 Since some time, there is also a prefork version available, called postfwd2.
-You can choose in /etc/default/postfwd to use 'postfwd' or postfwd2'.
+You can use update-alternatives to choose between 'postfwd1' and 'postfwd2'.
 
  -- Jan Wagner <waja@cyconet.org>  Mon, 10 Mar 2008 22:37:44 +0100
