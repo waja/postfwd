@@ -2,9 +2,7 @@ postfwd (1.18-2) UNRELEASED; urgency=low
 
   * Add dpatch infrastructure
   * Add 01_postfwd2.dpatch to ship postfwd2 script and changelog
-  * Rework initscript, so users can choose via /etc/default/postfwd
-    to use postfwd or postfwd2
-  * Symlink postfwd2 man page to the postfwd man page
+  * Provide update-alternatives for choosing the postfwd variant
 
  -- Jan Wagner <waja@cyconet.org>  Thu, 29 Apr 2010 08:49:20 +0200
 
