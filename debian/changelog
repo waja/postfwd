@@ -11,6 +11,7 @@ postfwd (1.20-1) unstable; urgency=low
   * Add dpatch infrastructure
   * Provide update-alternatives for choosing the postfwd variant
   * Install also CHANGELOG2
+  * Bump Standards-Version to 3.9.1, no changes needed
 
  -- Jan Wagner <waja@cyconet.org>  Wed, 08 Dec 2010 22:04:01 +0100
 

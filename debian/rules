@@ -35,7 +35,6 @@ binary-indep: build install
 	dh_installinit -- defaults 19 21
 	dh_installman man/man8/postfwd2.8
 	dh_installman debian/tmp/postfwd1.8
-	# dh_link usr/share/man/man1/postfwd.1.gz usr/share/man/man1/postfwd2.1.gz
 	dh_compress
 	dh_fixperms
 	dh_perl
