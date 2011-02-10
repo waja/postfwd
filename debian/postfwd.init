@@ -58,7 +58,8 @@ then
 fi
 
 # Check whether we have to drop privileges.
-if [ -n "$RUNAS" ]; then
+if [ -n "$RUNAS" ]
+then
         if ! getent passwd "$RUNAS" >/dev/null; then
                 RUNAS=""
         fi

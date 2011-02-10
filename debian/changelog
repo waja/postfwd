@@ -1,3 +1,46 @@
+postfwd (1.20-1) unstable; urgency=low
+
+  * New upstream release
+    - Release contains postfwd1 and postfwd2 now (Closes: #582969)
+    - new --umask setting allows to set filepermissions for pidfiles and unix
+      domain sockets
+    - Rate limit code rewritten
+    - rbl checks disabled for ipv6 addresses, cidr compare will switch to
+      default (regex/string)
+    - rbl check could fail on multiple dnsbl answers
+  * Add dpatch infrastructure
+  * Provide update-alternatives for choosing the postfwd variant
+  * Install also CHANGELOG2
+  * Bump Standards-Version to 3.9.1, no changes needed
+
+ -- Jan Wagner <waja@cyconet.org>  Thu, 10 Feb 2011 08:38:04 +0100
+
+postfwd (1.18-1) unstable; urgency=low
+
+  * New upstream release
+    - Fixed bug when comparing sender and recipient addresses, like
+      "sender=$$recipient"
+
+ -- Jan Wagner <waja@cyconet.org>  Thu, 29 Apr 2010 08:46:25 +0200
+
+postfwd (1.17-1) unstable; urgency=low
+
+  * New upstream release
+    - Net::DNS internal errors will now be handled gracefully
+    - default for options --dns_max_ns_a_lookups and --dns_max_mx_a_lookups of
+      100
+    - Fixed variable substitution when the '=' operator is used
+
+ -- Jan Wagner <waja@cyconet.org>  Mon, 22 Mar 2010 09:02:31 +0100
+
+postfwd (1.16-2) unstable; urgency=low
+
+  * Bump Standards-Version to 3.8.4, no changes needed
+  * Migrate Vcs-Fields over to scm.uncompleted.org
+  * Add 1.0 to debian/source/format
+
+ -- Jan Wagner <waja@cyconet.org>  Wed, 10 Mar 2010 12:35:57 +0100
+
 postfwd (1.16-1) unstable; urgency=low
 
   * NEW upstream release
