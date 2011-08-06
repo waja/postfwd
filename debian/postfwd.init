@@ -86,9 +86,9 @@ case "$1" in
 	;;
   restart|force-reload)
 	echo -n "Restarting $DESC (incl. cache): "
-	        $0 stop
+	        $0 stop > /dev/null
         	sleep 1
-	        $0 start
+	        $0 start > /dev/null
 	echo "$NAME."
 	;;
   *)

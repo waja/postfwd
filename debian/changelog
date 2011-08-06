@@ -1,3 +1,10 @@
+postfwd (1.20-2) UNRELEASED; urgency=low
+
+  * Suppress output on restarting via init script (Closes: #636782), thanks
+    Martin F. Krafft for reporting
+
+ -- Jan Wagner <waja@cyconet.org>  Thu, 10 Feb 2011 08:40:51 +0100
+
 postfwd (1.20-1) unstable; urgency=low
 
   * New upstream release
