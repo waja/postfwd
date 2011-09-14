@@ -29,12 +29,12 @@ install: build
 binary-indep: build install
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs doc/CHANGELOG
-	dh_installdocs tools
+	dh_installchangelogs doc/postfwd.CHANGELOG
+	dh_installdocs -Xhapolicy
+	dh_installdocs tools/hapolicy/hapolicy[0-9a-zA-Z.]*
 	dh_installexamples etc/postfwd.cf.sample debian/example-cfg*
 	dh_installinit -- defaults 19 21
-	dh_installman man/man8/postfwd2.8
-	dh_installman debian/tmp/postfwd1.8
+	dh_installman
 	dh_compress
 	dh_fixperms
 	dh_perl

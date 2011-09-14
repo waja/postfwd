@@ -13,6 +13,10 @@ postfwd (1.30-1) UNRELEASED; urgency=low
    - documentation updates and fixes
   * Suppress output on restarting via init script (Closes: #636782), thanks
     Martin F. Krafft for reporting
+  * Reorganize documentation
+   - Add new files from upstream to documentation
+   - Add 10_hapolicy_manpage.dpatch to have a manpage for hapolicy
+   - Changelogs where renamed by upstream
 
  -- Jan Wagner <waja@cyconet.org>  Thu, 10 Feb 2011 08:40:51 +0100
 
