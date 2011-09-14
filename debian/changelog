@@ -1,5 +1,16 @@
-postfwd (1.20-2) UNRELEASED; urgency=low
+postfwd (1.30-1) UNRELEASED; urgency=low
 
+  * New upstream release
+   - new parser enhancement allows to omit the trailing "\" for multi-line rules
+   - new plugin interface (BETA)
+   - Time::HiRes is used if available
+   - multiple rate limits for the same items are supported now
+   - new $$ratecount variable for rate() actions
+   - new option --keep_rates
+   - queueid is logged when available
+   - rate limits fixed
+   - new --debug class 'cleanup'
+   - documentation updates and fixes
   * Suppress output on restarting via init script (Closes: #636782), thanks
     Martin F. Krafft for reporting
 
