@@ -21,6 +21,7 @@ install: build
 	# install binaries
 	install -D -m 644 sbin/postfwd debian/postfwd/usr/sbin/postfwd1
 	install -D -m 644 sbin/postfwd2 debian/postfwd/usr/sbin/postfwd2
+	install -D -m 644 tools/hapolicy/hapolicy debian/postfwd/usr/sbin/hapolicy
 	# install man page
 	mkdir -p debian/tmp/
 	cp man/man8/postfwd.8 debian/tmp/postfwd1.8
