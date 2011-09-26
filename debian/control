@@ -19,3 +19,13 @@ Description: Postfix policyd to combine complex restrictions in a ruleset
  message has been accepted. It allows you to choose an action (e.g. reject,
  dunno) for a combination of several smtp parameters (like sender and recipient
  address, size or the client's TLS fingerprint).
+
+Package: hapolicy
+Architecture: all
+Depends: ${perl:Depends}, ${misc:Depends}
+Description: Balancing and fallback postfix policy delegation service
+ Hapolicy enables high availability, weighted loadbalancing and a fallback
+ action for postfix policy delegation services. Invoked via postfix spawn
+ it acts as a wrapper that queries other policy servers via tcp connection.
+ The order of the service queries can be influenced by assigning a specific
+ priority and weight to each service.
