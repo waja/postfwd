@@ -1,11 +1,11 @@
 postfwd (1.32-1) unstable; urgency=low
 
   * New upstream release
-   - new option --save_rates=<file> allows to load and save rate limit counters
+   - new option --save_rates=<file> is able to load and save rate limit counters
      to disk on program start and termination.
    - the --debugitem="sender=example\.org$" option allows verbose logging for
      particular requests
-   - the debug() action allows verbose logging for certain rules
+   - the debug() action enables verbose logging for certain rules
    - nested commands are possible now
    - new mail(server/helo/from/to/subject/body) action.
    - single cache items can be wiped
@@ -29,7 +29,6 @@ postfwd (1.32-1) unstable; urgency=low
   * Add hapolicy and manpage into separate binary package
   * Reorganize documentation
    - Add new files from upstream to documentation
-   - Add 10_hapolicy_manpage.dpatch to have a manpage for hapolicy
    - Changelogs where renamed by upstream
 
  -- Jan Wagner <waja@cyconet.org>  Wed, 21 Dec 2011 22:27:27 +0100
