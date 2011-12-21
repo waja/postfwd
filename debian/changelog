@@ -30,6 +30,7 @@ postfwd (1.32-1) unstable; urgency=low
   * Reorganize documentation
    - Add new files from upstream to documentation
    - Changelogs where renamed by upstream
+  * Bump Standards-Version to 3.9.2, no changes needed
 
  -- Jan Wagner <waja@cyconet.org>  Wed, 21 Dec 2011 22:27:27 +0100
 
