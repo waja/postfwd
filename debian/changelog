@@ -1,6 +1,18 @@
-postfwd (1.30-1) UNRELEASED; urgency=low
+postfwd (1.32-1) unstable; urgency=low
 
   * New upstream release
+   - new option --save_rates=<file> allows to load and save rate limit counters
+     to disk on program start and termination.
+   - the --debugitem="sender=example\.org$" option allows verbose logging for
+     particular requests
+   - the debug() action allows verbose logging for certain rules
+   - nested commands are possible now
+   - new mail(server/helo/from/to/subject/body) action.
+   - single cache items can be wiped
+   - sasl_username is logged if available
+   - rate limit action is executed, if the first request exceeds the limit
+   - exceeded ratecounters will not be kept permanently anymore
+   - rate limits are evaluated at ruleset stage now
    - new parser enhancement is able to omit the trailing "\" for multi-line
      rules
    - new plugin interface (BETA)
@@ -20,7 +32,7 @@ postfwd (1.30-1) UNRELEASED; urgency=low
    - Add 10_hapolicy_manpage.dpatch to have a manpage for hapolicy
    - Changelogs where renamed by upstream
 
- -- Jan Wagner <waja@cyconet.org>  Thu, 10 Feb 2011 08:40:51 +0100
+ -- Jan Wagner <waja@cyconet.org>  Wed, 21 Dec 2011 22:27:27 +0100
 
 postfwd (1.20-1) unstable; urgency=low
 
