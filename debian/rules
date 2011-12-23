@@ -21,19 +21,19 @@ install: build
 	# install binaries
 	install -D -m 644 sbin/postfwd debian/postfwd/usr/sbin/postfwd1
 	install -D -m 644 sbin/postfwd2 debian/postfwd/usr/sbin/postfwd2
-	install -D -m 644 tools/hapolicy/hapolicy debian/postfwd/usr/sbin/hapolicy
+	install -D -m 644 tools/hapolicy/hapolicy debian/hapolicy/usr/sbin/hapolicy
 	# install man page
 	mkdir -p debian/tmp/
 	cp man/man8/postfwd.8 debian/tmp/postfwd1.8
-	pod2man debian/postfwd/usr/sbin/hapolicy man/man8/hapolicy.1
+	pod2man debian/hapolicy/usr/sbin/hapolicy man/man8/hapolicy.1
 
 # Build architecture-independent files here.
 binary-indep: build install
 	dh_testdir
 	dh_testroot
 	dh_installchangelogs doc/postfwd.CHANGELOG
-	dh_installdocs -Xhapolicy
-	dh_installdocs tools/hapolicy/hapolicy[0-9a-zA-Z.]*
+	dh_installdocs -ppostfwd -Xhapolicy
+	dh_installdocs -phapolicy tools/hapolicy/hapolicy[0-9a-zA-Z.]*
 	dh_installexamples etc/postfwd.cf.sample debian/example-cfg*
 	dh_installinit -- defaults 19 21
 	dh_installman
