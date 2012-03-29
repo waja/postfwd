@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 9), dpatch
 Homepage: http://www.postfwd.org/
 Vcs-Browser: https://scm.uncompleted.org/projects/debian/repository/show/postfwd
 Vcs-Svn: https://scm.uncompleted.org/svn/debian/postfwd/trunk
-Standards-Version: 3.9.2
+Standards-Version: 3.9.3
 
 Package: postfwd
 Architecture: all
