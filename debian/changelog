@@ -2,6 +2,7 @@ postfwd (1.32-2) UNRELEASED; urgency=low
 
   * Switch over to packaging format 3.0 (quilt) (Closes: #664409)
   * Updating standards version to 3.9.3, no changes needed
+  * Remove build-dependency of dpatch
 
  -- Jan Wagner <waja@cyconet.org>  Fri, 23 Dec 2011 09:24:04 +0100
 
