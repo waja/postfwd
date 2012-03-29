@@ -4,7 +4,9 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-build:
+build: build-arch build-indep
+build-arch:
+build-indep:
 
 clean:
 	dh_testdir
