@@ -1,4 +1,4 @@
-postfwd (1.32-2) UNRELEASED; urgency=low
+postfwd (1.32-2) unstable; urgency=low
 
   * Switch over to packaging format 3.0 (quilt) (Closes: #664409)
   * Updating standards version to 3.9.3, no changes needed
@@ -6,7 +6,7 @@ postfwd (1.32-2) UNRELEASED; urgency=low
   * Use dh_prep instead of dh_clean -k
   * Add build-arch and build-indep targets to debian/rules
 
- -- Jan Wagner <waja@cyconet.org>  Fri, 23 Dec 2011 09:24:04 +0100
+ -- Jan Wagner <waja@cyconet.org>  Thu, 29 Mar 2012 20:22:17 +0200
 
 postfwd (1.32-1) unstable; urgency=low
 
