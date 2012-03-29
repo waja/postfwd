@@ -1,6 +1,6 @@
 postfwd (1.32-2) UNRELEASED; urgency=low
 
-  * NOT RELEASED YET
+  * Switch over to packaging format 3.0 (quilt) (Closes: #664409)
 
  -- Jan Wagner <waja@cyconet.org>  Fri, 23 Dec 2011 09:24:04 +0100
 
