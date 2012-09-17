@@ -1,5 +1,12 @@
-postfwd (1.32-3) UNRELEASED; urgency=low
+postfwd (1.33-1) UNRELEASED; urgency=low
 
+  * New upstream release
+   - fixed bug when computing scores with more than 1 digit after the "."
+   - fixed bug when computing negative values with the set action
+   - ITEMS plugins returning zero values were handled incorrectly
+   - max command recursion was not reset for each rule
+   - fixed warning about use of (uninitialized value) when STORABLE
+     is available but no cache file was defined
   * Fix comment in /etc/default/postfwd (Closes: #679924), thanks Jeroen
     Koekkoek
 
