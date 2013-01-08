@@ -9,6 +9,7 @@ postfwd (1.33-1) UNRELEASED; urgency=low
      is available but no cache file was defined (Closed: #697657)
   * Fix comment in /etc/default/postfwd (Closes: #679924), thanks Jeroen
     Koekkoek
+  * Fix typo in README.Debian (closes: #691242), thanks Axel Beckert
 
  -- Jan Wagner <waja@cyconet.org>  Thu, 29 Mar 2012 20:31:17 +0200
 
