@@ -1,9 +1,6 @@
-#doc/postfwd.html
-#doc/postfwd.txt
 doc/postfwd2.CHANGELOG
 doc/*.html
 doc/*.txt
-tools/hapolicy/hapolicy.*
 tools/*.pl
 tools/*.sample
 plugins/*.sample

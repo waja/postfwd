@@ -9,7 +9,7 @@ CONF=/etc/postfix/postfwd.cf
 INET=127.0.0.1
 # Port where listen to
 PORT=10040
-# run as user postfwd
+# run as user postfw
 RUNAS="postfw"
 # Arguments passed on start (--daemon implied)
 ARGS="--summary=600 --cache=600 --cache-rdomain-only --cache-no-size"

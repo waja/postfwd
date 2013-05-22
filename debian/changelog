@@ -1,7 +1,60 @@
-postfwd (1.30-1) UNRELEASED; urgency=low
+postfwd (1.35-1) unstable; urgency=low
 
   * New upstream release
-   - new parser enhancement is able to omit the trailing "\" for multi-line rules
+   - fixed fixed taint mode logging error
+   - check_* functions use print/getline instead of send/recv for large
+     --dumpcache output
+   - log_* routines added to allow the same plugins for postfwd1 and postfwd2
+   - added more information when using --debug=cleanup
+   - new sendmail(sendmail-path::from::to::subject::body) action
+   - rate(), size() and rcpt() function index is now case insensitive by
+     default
+   - fixed segfault when using new perl versions (Closes: #697653)
+
+ -- Jan Wagner <waja@cyconet.org>  Wed, 22 May 2013 14:49:15 +0200
+
+postfwd (1.33-1) UNRELEASED; urgency=low
+
+  * New upstream release
+   - fixed bug when computing scores with more than 1 digit after the "."
+   - fixed bug when computing negative values with the set action
+   - ITEMS plugins returning zero values were handled incorrectly
+   - max command recursion was not reset for each rule
+   - fixed warning about use of (uninitialized value) when STORABLE
+     is available but no cache file was defined (Closes: #697657)
+  * Fix comment in /etc/default/postfwd (Closes: #679924), thanks Jeroen
+    Koekkoek
+  * Fix typo in README.Debian (closes: #691242), thanks Axel Beckert
+
+ -- Jan Wagner <waja@cyconet.org>  Thu, 29 Mar 2012 20:31:17 +0200
+
+postfwd (1.32-2) unstable; urgency=low
+
+  * Switch over to packaging format 3.0 (quilt) (Closes: #664409)
+  * Updating standards version to 3.9.3, no changes needed
+  * Remove build-dependency of dpatch
+  * Use dh_prep instead of dh_clean -k
+  * Add build-arch and build-indep targets to debian/rules
+
+ -- Jan Wagner <waja@cyconet.org>  Thu, 29 Mar 2012 20:22:17 +0200
+
+postfwd (1.32-1) unstable; urgency=low
+
+  * New upstream release
+   - new option --save_rates=<file> is able to load and save rate limit counters
+     to disk on program start and termination.
+   - the --debugitem="sender=example\.org$" option allows verbose logging for
+     particular requests
+   - the debug() action enables verbose logging for certain rules
+   - nested commands are possible now
+   - new mail(server/helo/from/to/subject/body) action.
+   - single cache items can be wiped
+   - sasl_username is logged if available
+   - rate limit action is executed, if the first request exceeds the limit
+   - exceeded ratecounters will not be kept permanently anymore
+   - rate limits are evaluated at ruleset stage now
+   - new parser enhancement is able to omit the trailing "\" for multi-line
+     rules
    - new plugin interface (BETA)
    - Time::HiRes is used if available
    - multiple rate limits for the same items are supported now
@@ -13,13 +66,13 @@ postfwd (1.30-1) UNRELEASED; urgency=low
    - documentation updates and fixes
   * Suppress output on restarting via init script (Closes: #636782), thanks
     Martin F. Krafft for reporting
-  * Ship hapolicy and manpage
+  * Add hapolicy and manpage into separate binary package
   * Reorganize documentation
    - Add new files from upstream to documentation
-   - Add 10_hapolicy_manpage.dpatch to have a manpage for hapolicy
    - Changelogs where renamed by upstream
+  * Bump Standards-Version to 3.9.2, no changes needed
 
- -- Jan Wagner <waja@cyconet.org>  Thu, 10 Feb 2011 08:40:51 +0100
+ -- Jan Wagner <waja@cyconet.org>  Wed, 21 Dec 2011 22:27:27 +0100
 
 postfwd (1.20-1) unstable; urgency=low
 
