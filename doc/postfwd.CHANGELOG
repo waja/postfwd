@@ -1,3 +1,90 @@
+1.32
+====
+- feature: new option --save_rates=<file> allows to load and save
+	   rate limit counters to disk on program start and termination.
+	   this allows rate limit persistence during restarts and reboots
+	   (requires perl module 'Storable')
+- feature: the --debugitem="sender=example\.org$" option
+           allows verbose logging for particular requests
+- feature: the debug() action allows verbose logging for certain
+           rules:
+    ------------------------------------------------------------
+     id=R01
+        client_address=1.1.1.1
+        action=debug(on)
+     id=R02
+     ...
+     id=R42
+        action=debug(off)
+    ------------------------------------------------------------
+- feature: nested commands are possible now, e.g.:
+    ------------------------------------------------------------
+     # throttle
+     action=rate(client_address/10/60/wait(3))
+    ------------------------------------------------------------
+- feature: new mail(server/helo/from/to/subject/body) action.
+           Please take a look at the manual, especially about
+           it's limitations, before using it!
+    ------------------------------------------------------------
+     # alert
+     action=size(recipient_domain/100000000/86400/mail(mailhost/helo/from/to/subject/text))
+    ------------------------------------------------------------
+
+1.31
+====
+- feature: single cache items can be wiped using --delcache <item>
+	   or --delrate <item> options. use --dumpcache to identify
+- feature: sasl_username is logged if available
+	   (thanks to Bernhard Schmidt)
+- code:    rate limit action is executed, if the first request exceeds the limit
+- code:    exceeded ratecounters will not be kept permanently anymore. this
+	   allows further requests to pass, if they are below the limit
+- code:	   rate limits are evaluated at ruleset stage now, which leads to
+	   much more comprehensible behaviour. due to this change the request
+	   cache is now disabled, if rate limits are used. use the
+	   --fast_limit_evaluation option to revert to the former mode.
+
+1.30
+====
+- feature: new parser enhancement allows to omit the trailing "\" for multi-line rules,
+	   if the following lines are prefixed by whitespace characters:
+		--------------------------------------
+		 id=RCPTCOUNT
+		    protocol_state  == END-OF-MESSAGE
+		    client_address  != 10.1.1.0/24
+		    recipient_count >= 100
+		    action=REJECT too many recipients
+		--------------------------------------
+- feature: new plugin interface (BETA)
+- feature: Time::HiRes is used if available
+- feature: new $$ratecount variable for rate() actions
+- feature: ported --dumpstats and --dumpcache option from postfwd2
+- bugfix:  fixed program usage statistics (--summary)
+- docs:    documentation updates
+
+1.22
+=====
+- feature: new option --keep_rates
+- feature: queueid is logged when available
+- bugfix:  rate limits using the same item and the same limits
+           did not work correctly (thanks to Yves Blusseau):
+		id=INT01; INT_DOMAIN==1; \
+			action=rate(sender/100/60/450 4.7.1 too much for internal domains)
+		id=EXT01; EXT_DOMAIN==1; \
+			action=rate(sender/100/60/450 4.7.1 too much for external domains)
+- bugfix:  small fix for cleanup of old rate limits
+- docs:    documentation updates and fixes (thanks to Vincent Lefevre)
+
+1.21
+=====
+- feature: postfwd supports multiple rate limits to the same items now.
+	   this means that the following will now work as expected:
+		id=R001; recipient_count>=100; action=rate(sender/3/3600/WARN state RED)
+		id=R002; recipient_count>=100; action=rate(sender/2/3600/WARN state YELLOW)
+		id=R003; recipient_count>=100; action=rate(sender/1/3600/WARN state GREEN)
+- code:    ported command-line option --facility from postfwd2
+- docs:    documentation updates and fixes (thanks to Vincent Lefevre)
+
 1.20
 =====
 - code:    changed the default umask for the server socket to 0111
