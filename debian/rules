@@ -9,6 +9,8 @@ build-arch:
 build-indep:
 
 clean:
+	# removing generated manpage (not initial shipped)
+	rm -rf man/man8/hapolicy.1
 	dh_testdir
 	dh_testroot
 	dh_clean
