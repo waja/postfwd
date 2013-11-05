@@ -34,7 +34,7 @@ binary-indep: build install
 	dh_installchangelogs doc/postfwd.CHANGELOG
 	dh_installdocs -ppostfwd -Xhapolicy
 	dh_installdocs -phapolicy tools/hapolicy/hapolicy[0-9a-zA-Z.]*
-	dh_installexamples etc/postfwd.cf.sample debian/example-cfg*
+	dh_installexamples
 	dh_installinit -- defaults 19 21
 	dh_installman
 	dh_compress
