@@ -34,7 +34,7 @@ BEGIN {
 
 # basics
 our $NAME	= "postfwd2";
-our $VERSION	= "1.32";
+our $VERSION	= "1.35";
 our $DEFAULT	= 'DUNNO';
 
 # change this, to match your POD requirements
@@ -75,7 +75,6 @@ our %postfwd_settings = (
 		proto		 => (($nounixsock) ? "tcp" : "unix"),
 		check		 => (($nounixsock) ? \&check_inet : \&check_unix),
 		umask		 => "0177",
-		recvbuffer	 => 65535,
 	},
 	server => {
 		commandline	 => " ".$NAME."::policy",
@@ -85,7 +84,6 @@ our %postfwd_settings = (
 		proto            => "tcp",
 		check		 => \&check_inet,
 		umask		 => "0111",
-		recvbuffer	 => 65535,
 		# child control
 		#check_for_dead         => 30,
 		#check_for_waiting      => 10,
@@ -299,8 +297,8 @@ sub mylogs_new {
 
 # Syslog to stdout
 sub mylogs_stdout {
-	my($prio,$msg) = @_;
-	printf STDOUT "[LOG $prio]: $msg\n", @_;
+	my($prio,$msg) = @_; $msg =~ /^(.*)$/;
+	printf STDOUT "[LOG $prio]: $1\n", @_;
 };
 
 # send log message
@@ -345,8 +343,8 @@ sub check_inet {
 		Proto    => 'tcp',
 		Timeout  => $postfwd_settings{timeout}{$type},
 		Type     => SOCK_STREAM ) ) {
-		$socket->send("$send\n");
-		$socket->recv($send, $postfwd_settings{$type}{recvbuffer});
+		$socket->print("$send\n");
+		$send = $socket->getline();
 		$socket->close();
 		chomp($send);
 	} else {
@@ -363,8 +361,8 @@ sub check_unix {
 		Peer     => $postfwd_settings{$type}{port},
 		Timeout  => $postfwd_settings{timeout}{$type},
 		Type     => SOCK_STREAM ) ) {
-		$socket->send("$send\n");
-		$socket->recv($send, $postfwd_settings{$type}{recvbuffer});
+		$socket->print("$send\n");
+		$send = $socket->getline();
 		$socket->close();
 		chomp($send);
 	} else {
@@ -638,6 +636,7 @@ sub cleanup_cache {
 # saves rate limits to disk
 sub save_rates {
     return unless ($STORABLE and $postfwd_settings{rate}{store} and defined $Cache{rate});
+    cleanup_cache ('rate', time());
     eval {
 	local $SIG{__DIE__} = sub { log_note ("ERROR: Could not store rate limits to ".$postfwd_settings{rate}{store}.": $! @_") };
 	store ($Cache{rate}, $postfwd_settings{rate}{store});
@@ -651,7 +650,7 @@ sub save_rates {
 # loads rate limits from disk
 sub load_rates {
     my $loadrate = undef;
-    return unless ($STORABLE and (-f $postfwd_settings{rate}{store}));
+    return unless ($STORABLE and $postfwd_settings{rate}{store} and (-f $postfwd_settings{rate}{store}));
     eval {
 	local $SIG{__DIE__} = sub { log_note ("Could not load rate limits from ".$postfwd_settings{rate}{store}.": $! @_") };
 	$loadrate = retrieve($postfwd_settings{rate}{store});
@@ -660,6 +659,7 @@ sub load_rates {
 	$Cache{rate} = $loadrate;
         log_info ("Fetched ".(scalar %{$Cache{rate}})." rates from ".$postfwd_settings{rate}{store})
                 if wantsdebug(qw[ all verbose rates loadrates saverates ]);
+	cleanup_cache ('rate', time());
     };
 };
 
@@ -880,7 +880,7 @@ my $COMP_HITS                 = "request_hits";
 # item match counter
 my $COMP_MATCHES              = "matches";
 # separator
-my $COMP_SEPARATOR            = "[=\~\<\>]=|[=\!][=\~\<\>]|=";
+my $COMP_SEPARATOR            = "[=\~\<\>]=|[\<\>]|[=\!][=\~\<\>]|=";
 # macros
 my $COMP_ACL                  = "[\&][\&]";
 # negation
@@ -1141,7 +1141,7 @@ sub check_for_old_syntax {
   if ($mykey =~ /^action$/) {
     if ($myvalue =~ /^(\w[\-\w]+)\s*\(\s*(.*?)\s*\)$/) {
 	my($mycmd,$myarg) = ($1, $2);
-	if ($mycmd =~ /^(rate|size|rcpt)$/i) {
+	if ($mycmd =~ /^(rate|size|rcpt)(5321)?$/i) {
 	  if ($myarg =~ /^\$\$(.*)$/) {
 	    $myarg = $1;
 	    $myvalue = "$mycmd($myarg)";
@@ -1630,7 +1630,7 @@ sub postfwd_items {
 	%result = (%result, &{$postfwd_items{$_}}((%request,%result)))
 		if (defined $postfwd_items{$_});
     };
-    map { $result{$_} = '' unless $result{$_}; log_info ("[PLUGIN]  Added key: $_=$result{$_}") if wantsdebug (qw[ all thisrequest ]) } (keys %result);
+    map { $result{$_} = '' unless (defined $result{$_}); log_info ("[PLUGIN]  Added key: $_=$result{$_}") if wantsdebug (qw[ all thisrequest ]) } (keys %result);
     return %result;
 };
 #
@@ -1671,6 +1671,10 @@ sub postfwd_items {
                         $myresult = ($myitem <= $val);
                 } elsif ($cmp eq '=>') {
                         $myresult = ($myitem >= $val);
+                } elsif ($cmp eq '<') {
+                        $myresult = ($myitem < $val);
+                } elsif ($cmp eq '>') {
+                        $myresult = ($myitem > $val);
                 } elsif ($cmp eq '!=') {
                         $myresult = not($myitem == $val);
                 } elsif ($cmp eq '!<') {
@@ -1835,6 +1839,10 @@ sub postfwd_items {
 			$myresult = (($myitem || 0) >= $val);
 		} elsif ($cmp eq '!>') {
 			$myresult = not(($myitem || 0) >= $val);
+		} elsif ($cmp eq '<') {
+			$myresult = (($myitem || 0) < $val);
+		} elsif ($cmp eq '>') {
+			$myresult = (($myitem || 0) > $val);
 		} elsif ($cmp eq '=~') {
 			$myresult = ($myitem =~ /$val/i);
 		} elsif ($cmp eq '!~') {
@@ -1895,13 +1903,13 @@ sub postfwd_items {
 					$m_val = $r_val;
 				} elsif ( ($mod eq '.=') or ($mod eq '=.') ) {
 					$m_val .= $r_val;
-				} elsif ( (($mod eq '+=') or ($mod eq '=+')) and (($m_val=~/^\d+(\.\d+)?$/) and ($r_val=~/^\d+(\.\d+)?$/)) ) {
+				} elsif ( (($mod eq '+=') or ($mod eq '=+')) and (($m_val=~/^\-?\d+(\.\d+)?$/) and ($r_val=~/^\-?\d+(\.\d+)?$/)) ) {
 					$m_val += $r_val;
-				} elsif ( (($mod eq '-=') or ($mod eq '=-')) and (($m_val=~/^\d+(\.\d+)?$/) and ($r_val=~/^\d+(\.\d+)?$/)) ) {
+				} elsif ( (($mod eq '-=') or ($mod eq '=-')) and (($m_val=~/^\-?\d+(\.\d+)?$/) and ($r_val=~/^\-?\d+(\.\d+)?$/)) ) {
 					$m_val -= $r_val;
-				} elsif ( (($mod eq '*=') or ($mod eq '=*')) and (($m_val=~/^\d+(\.\d+)?$/) and ($r_val=~/^\d+(\.\d+)?$/)) ) {
+				} elsif ( (($mod eq '*=') or ($mod eq '=*')) and (($m_val=~/^\-?\d+(\.\d+)?$/) and ($r_val=~/^\-?\d+(\.\d+)?$/)) ) {
 					$m_val *= $r_val;
-				} elsif ( (($mod eq '/=') or ($mod eq '=/')) and (($m_val=~/^\d+(\.\d+)?$/) and ($r_val=~/^\d+(\.\d+)?$/)) ) {
+				} elsif ( (($mod eq '/=') or ($mod eq '=/')) and (($m_val=~/^\-?\d+(\.\d+)?$/) and ($r_val=~/^\-?\d+(\.\d+)?$/)) ) {
 					$m_val /= (($r_val == 0) ? 1 : $r_val);
 				} else {
 					$m_val = $r_val;
@@ -1924,7 +1932,7 @@ sub postfwd_items {
 		my($myaction) = $postfwd_settings{default}; my($stop) = 0;
 		my($score) = (defined $request{request_score}) ? $request{request_score} : 0;
 		if ($myarg =~/^([\+\-\*\/\=]?)(\d+)([\.,](\d+))?$/) {
-			my($mod, $val) = ($1, $2 + ((defined $4) ? ($4 / 10) : 0));
+			my($mod, $val) = ($1, $2 + ((defined $4) ? "0.$4" : 0));
 			if ($mod eq '-') {
 				$score -= $val;
 			} elsif ($mod eq '*') {
@@ -1968,7 +1976,7 @@ sub postfwd_items {
 		);
 		if ( my $socket = IO::Socket::INET->new(
 			PeerAddr => $mserver,
-			PeerPort => ($mport || 25),
+			PeerPort => ($mport ||= 25),
 			Proto    => 'tcp',
 			Timeout  => 30,
 			Type     => SOCK_STREAM,
@@ -1984,16 +1992,40 @@ sub postfwd_items {
 		};
 		return ($stop,$index,$myaction,$myline,%request);
 	},
+	# sendmail()
+	"sendmail" => sub {
+		my($index,$now,$mycmd,$myarg,$myline,%request) = @_;
+		my($myaction) = $postfwd_settings{default}; my($stop) = 0;
+		my($mcmd,$mfrom,$mto,$msubject,$mbody) = split '::', $myarg, 5;
+		my($msg) = "From: $mfrom\nTo: $mto\nSubject: $msubject\n\n$mbody\n";
+		if ( (-x $mcmd) and open (SM, "| $mcmd -i -f $mfrom $mto") ) {
+			if ( print SM "$msg" ) {
+				log_info ("[SENDMAIL] ".$myline.", $mcmd from=<$mfrom>, to=<$mto>, subject=<$msubject>");
+			} else {
+				log_note ("[SENDMAIL] ".$myline.", could not print to $mcmd pipe: '$!'");
+			};
+			close(SM);
+		} else {
+			log_note ("[SENDMAIL] ".$myline.", could not open pipe to $mcmd: '$!'");
+		};
+		return ($stop,$index,$myaction,$myline,%request);
+	},
 	# rate() command
 	"rate"	=> sub {
 		my($index,$now,$mycmd,$myarg,$myline,%request) = @_;
 		my($myaction) = $postfwd_settings{default}; my($stop) = 0; my $prate = '';
 		my($ratetype,$ratecount,$ratetime,$ratecmd) = split "/", $myarg, 4;
-		my($rcount) = ( ($mycmd eq 'size') ? $request{size} : (($mycmd eq 'rcpt') ? $request{recipient_count} : 1 ) );
+		my($rcount) = ( ($mycmd =~ /^size/) ? $request{size} : (($mycmd =~ /^rcpt/) ? $request{recipient_count} : 1 ) );
 		if ($ratetype and $ratecount and $ratetime and $ratecmd and $rcount) {
 		  my $crate = $Rules[$index]{$COMP_ID}.'+'.$ratecount.'_'.$ratetime;
 		  if ( defined $request{$ratetype} ) {
-			$ratetype .= "=".$request{$ratetype};
+                        my $r = $request{$ratetype};
+                        unless ($mycmd =~ /5321$/) {
+                                $r = lc($r);
+                        } else {
+                                $r = ($r =~ /^([^@]+)@(\S+)$/) ? $1.'@'.lc($2) : lc($r);
+                        };
+                        $ratetype .= "=".$r;
 
 			if ( $postfwd_settings{rate}{fast_eval} ) {
 				# Check if rate already exists in cache
@@ -2077,6 +2109,12 @@ sub postfwd_items {
 	"size"	=> sub { return &{$postfwd_actions{rate}}(@_); },
 	# rcpt() command
 	"rcpt"	=> sub { return &{$postfwd_actions{rate}}(@_); },
+	# rate() command, according to rfc5321 case-sensivity
+	"rate5321"      => sub { return &{$postfwd_actions{rate}}(@_); },
+	# rcpt() command, according to rfc5321 case-sensivity
+	"rcpt5321"      => sub { return &{$postfwd_actions{rate}}(@_); },
+	# size() command, according to rfc5321 case-sensivity
+	"size5321"      => sub { return &{$postfwd_actions{rate}}(@_); },
 	# wait() command
 	"wait"	=> sub {
 		my($index,$now,$mycmd,$myarg,$myline,%request) = @_;
@@ -2206,7 +2244,7 @@ sub compare_item {
     # now compare request to every single item
     ITEM: foreach (@items) {
 	($cmp, $val) = split ";";
-	next ITEM unless ($cmp and $val and $mykey);
+	next ITEM unless ($cmp and (defined $val) and $mykey);
 	# prepare_file
 	if ($val =~ /$COMP_LIVE_FILE_TABLE/) {
 		push @items, prepare_file (0, $1, $cmp, $2);
@@ -2215,7 +2253,7 @@ sub compare_item {
 	log_info ("compare $mykey:  \"$myitem\"  \"$cmp\"  \"$val\"") if wantsdebug (qw[ all thisrequest ]);
 	$val = $neg if ($neg = deneg_item($val));
 	log_info ("deneg $mykey:  \"$myitem\"  \"$cmp\"  \"$val\"") if ($neg and wantsdebug (qw[ all thisrequest ]));
-	next ITEM unless $val;
+	next ITEM unless (defined $val);
 	# substitute check for $$vars in rule item
 	if ( $var = devar_item ($cmp,$val,$myitem,%request) ) {
 		$val = $var; $val =~ s/([^-_@\.\w\s])/\\$1/g unless ($cmp eq '==');
@@ -2288,7 +2326,7 @@ sub compare_rule {
 			? $date
 			# default: compare against request attribute
 			: $request{$mykey};
-		$myresult[0] = ($res = compare_item($mykey, $Rules[$index]{$mykey}, $num, ($val || ''), %request)) ? ($myresult[0] + $res) : 0;
+		$myresult[0] = ($res = compare_item($mykey, $Rules[$index]{$mykey}, $num, ((defined $val) ? $val : ''), %request)) ? ($myresult[0] + $res) : 0;
 	};
 	last ITEM unless ($myresult[0] > 0);
     };
@@ -2493,7 +2531,7 @@ sub compare_rule {
 	$myline  = "[RULES]  RULE: ".$index."  MATCHES: ".((($myresult[0] - 2) > 0) ? ($myresult[0] - 2) : 0);
 	$myline .= "  RBLCOUNT: ".$myresult[1] if $myresult[1];
 	$myline .= "  RHSBLCOUNT: ".$myresult[2] if $myresult[2];
-	$myline .= "  DNSBLTEXT: ".(join ("; ", @DNSBL_Text)) if ( (defined @DNSBL_Text) and (($myresult[1] > 0) or ($myresult[2] > 0)) );
+	$myline .= "  DNSBLTEXT: ".(join ("; ", @DNSBL_Text)) if ( (@DNSBL_Text) and (($myresult[1] > 0) or ($myresult[2] > 0)) );
 	log_info ($myline);
     };
     return @myresult;
@@ -2549,7 +2587,7 @@ sub smtpd_access_policy {
 
     # increase rate limits
     if (@Rate_Items and $postfwd_settings{rate}{fast_eval}) {
-	map { $checkval .= $_."=".$request{$_}.$postfwd_settings{seplst} if $request{$_} } (@Rate_Items);
+	map { $checkval .= $_."=".lc($request{$_}).$postfwd_settings{seplst} if $request{$_} } (@Rate_Items);
 	if ($checkval) {
 		$checkval = "CMD=".$postfwd_commands{checkrate}.";TYPE=rate;ITEM=$checkval;SIZE=".($request{'size'} || 0).";RCPT=".($request{'recipient_count'} || 0);
 			log_info ("[RATES] parent rate limit query: ".$checkval) if wantsdebug (qw[ all thisrequest verbose rates ]);
@@ -2746,6 +2784,7 @@ sub smtpd_access_policy {
 					. ", state=".$request{protocol_state};
 
 				# check for postfwd action
+				$ai = 0; # (re)set max_command_recursion counter
 				while ($ai++ < $postfwd_settings{max_command_recursion} and $myaction =~ /^(\w[\-\w]+)\s*\(\s*(.*?)\s*\)$/) {
 					my($mycmd,$myarg) = ($1, $2); $stop = 0;
 					if (defined $postfwd_actions{$mycmd}) {
@@ -3199,6 +3238,7 @@ log_note ("NODNS: set - will skip all dns based checks") if $postfwd_settings{dn
 
 # check for --nodaemon option
 unless ($postfwd_settings{daemon}) {
+	log_note ("NODAEMON: Please note that rate() commands do not work with postfwd2 and --nodaemon option due to the missing cache daemon");
 	my(%attr) = ();
 	get_plugins (@{$postfwd_settings{Plugins}}) if $postfwd_settings{Plugins};
 	read_config(1);
@@ -3280,7 +3320,8 @@ die "master-daemon: should never see me!\n";
 
 # cleanup children and files and terminate
 sub end_program {
-	local $SIG{TERM} = 'IGNORE';
+	# ignore further TERM signals
+	$SIG{TERM} = 'IGNORE';
 	if ($postfwd_settings{summary}) {
 		undef $postfwd_settings{syslog}{noidlestats};
 		log_stats();
@@ -3445,6 +3486,8 @@ B<postfwd2> [OPTIONS] [SOURCE1, SOURCE2, ...]
             --keep_rates		do not clear rate limit counters on reload
             --save_rates <file>		save and load rate limits on disk
 	    --fast_limit_evaluation	evaluate rate limits before ruleset is parsed
+                                        (please note the limitations)
+
 
 	Plugins:
 	    --plugins <file>            loads postfwd plugins from file
@@ -3527,6 +3570,8 @@ The way how request items are compared to the ruleset can be influenced in the f
 	 ITEM == VALUE                true if ITEM equals VALUE
 	 ITEM => VALUE                true if ITEM >= VALUE
 	 ITEM =< VALUE                true if ITEM <= VALUE
+	 ITEM >  VALUE                true if ITEM >  VALUE
+	 ITEM <  VALUE                true if ITEM <  VALUE
 	 ITEM =~ VALUE                true if ITEM ~= /^VALUE$/i
 	 ITEM != VALUE                false if ITEM equals VALUE
 	 ITEM !> VALUE                false if ITEM >= VALUE
@@ -3837,7 +3882,7 @@ Files can refer to other files. The following is valid.
 	-- FILE /etc/postfwd/clients_west.cf --
 	192.168.3.0/24
 
-Remind that there is currently no loop detection (/a/file calls /a/file) and that this feature is only available
+Note that there is currently no loop detection (/a/file calls /a/file) and that this feature is only available
 with postfwd1 v1.15 and postfwd2 v0.18 and higher.
 
 
@@ -3896,7 +3941,7 @@ postfwd2 actions control the behaviour of the program. Currently you can specify
 	this command creates a counter for the given <item>, which will be increased any time a request
 	containing it arrives. if it exceeds <max> within <time> seconds it will return <action> to postfix.
 	rate counters are very fast as they are executed before the ruleset is parsed.
-	please note that <action> is currently limited to postfix actions (no postfwd actions)!
+	please note that <action> was limited to postfix actions (no postfwd actions) for postfwd versions <1.33!
 	    # no more than 3 requests per 5 minutes
 	    # from the same "unknown" client
 	    id=RATE01 ;  client_name==unknown
@@ -3919,6 +3964,11 @@ postfwd2 actions control the behaviour of the program. Currently you can specify
 	   id=RCPT01 ;  protocol_state==END-OF-MESSAGE ;  client_address==!!(10.1.1.1)
 	      action=rcpt(client_address/3/3600/450 4.7.1 sorry, max 3 recipients per hour)
 
+        rate5321,size5321,rcpt5321 (<item>/<max>/<time>/<action>)
+        same as the corresponding non-5321 functions, with the difference that the localpart of
+        sender oder recipient addresses are evaluated case-sensitive according to rfc5321. That
+	means that requests from bob@example.local and BoB@example.local will be treated differently
+
 	ask (<addr>:<port>[:<ignore>])
 	allows to delegate the policy decision to another policy service (e.g. postgrey). the first
 	and the second argument (address and port) are mandatory. a third optional argument may be
@@ -3930,9 +3980,15 @@ postfwd2 actions control the behaviour of the program. Currently you can specify
 	   id=GREY; client_address==10.1.1.1; action=ask(127.0.0.1:10031:^dunno$)
 
         mail(server/helo/from/to/subject/body)
+	This command is deprecated. You should try to use the sendmail() action instead.
         Very basic mail command, that sends a message with the given arguments. LIMITATIONS:
         This basically performs a telnet. No authentication or TLS are available. Additionally it does
         not track notification state and will notify you any time, the corresponding rule hits.
+
+	sendmail(sendmail-path::from::to::subject::body)
+	Mail command, that uses an existing sendmail binary and sends a message with the given arguments.
+	LIMITATIONS: The command does not track notification state and will notify you any time, the
+	corresponding rule hits (which could mean 100 mails for a mail with 100 recipients at RCPT stage).
 
 	wait (<delay>)
 	pauses the program execution for <delay> seconds. use this for
@@ -4091,6 +4147,10 @@ will be used.
 					$myresult = ($myitem <= $val);
 				} elsif ($cmp eq '=>') {
 					$myresult = ($myitem >= $val);
+				} elsif ($cmp eq '<') {
+					$myresult = ($myitem < $val);
+				} elsif ($cmp eq '>') {
+					$myresult = ($myitem > $val);
 				} elsif ($cmp eq '!=') {
 					$myresult = not($myitem == $val);
 				} elsif ($cmp eq '!<') {
@@ -4122,15 +4182,15 @@ continue or to stop parsing the ruleset.
 			# note(<logstring>) command
 			"note"  => sub {
 				my($index,$now,$mycmd,$myarg,$myline,%request) = @_;
-				my($myaction) = $default_action; my($stop) = 0;
-				mylogs 'info', "[RULES] ".$myline." - note: ".$myarg if $myarg;
+				my($myaction) = 'dunno'; my($stop) = 0;
+				log_info "[RULES] ".$myline." - note: ".$myarg if $myarg;
 				return ($stop,$index,$myaction,$myline,%request);
 			},
 	
 			# skips next <myarg> rules
         		"skip" => sub {
 				my($index,$now,$mycmd,$myarg,$myline,%request) = @_;
-				my($myaction) = $default_action; my($stop) = 0;
+				my($myaction) = 'dunno'; my($stop) = 0;
 				$index += $myarg if ( $myarg and not(($index + $myarg) > $#Rules) );
 				return ($stop,$index,$myaction,$myline,%request);
         		},
@@ -4138,8 +4198,8 @@ continue or to stop parsing the ruleset.
 			# dumps current request contents to syslog
         		"dumprequest" => sub {
 				my($index,$now,$mycmd,$myarg,$myline,%request) = @_;
-				my($myaction) = $default_action; my($stop) = 0;
-				map { mylogs 'info', "[DUMP] rule=$index, Attribute: $_=$request{$_}" } (keys %request);
+				my($myaction) = 'dunno'; my($stop) = 0;
+				map { log_info "[DUMP] rule=$index, Attribute: $_=$request{$_}" } (keys %request);
 				return ($stop,$index,$myaction,$myline,%request);
         		},
 
@@ -4382,6 +4442,9 @@ These parameters influence the way postfwd2 is working. Any of them can be combi
 	before consulting the ruleset. This mode was the default behaviour until v1.30.
 	With this mode rate limits will be faster, but also eventually set up
 	whitelisting-rules within the ruleset might not work as expected.
+        LIMITATIONS: This option does not allow nested postfwd commands like
+                action=rate(sender/3/60/wait(3))
+        This option doe not work with the strict-rfc5321 rate() functions.
 
 I<Informational arguments>
 
