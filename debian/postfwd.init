@@ -22,6 +22,8 @@ DAEMON=/usr/sbin/${NAME}
 PIDFILE=/var/run/$NAME.pid
 DESC=postfwd
 
+. /lib/lsb/init-functions
+
 test -x $DAEMON || exit 0
 
 not_configured () {
