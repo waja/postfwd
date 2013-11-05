@@ -25,7 +25,7 @@ use vars qw(@ISA);
 
 # Program constants
 our($NAME) 			= 'postfwd';
-our($VERSION)			= '1.18';
+our($VERSION)			= '1.20';
 
 # Networking options (use -i, -p and -R to change)
 our($def_net_pid)		= "/var/run/".$NAME.".pid";
@@ -33,6 +33,7 @@ our($def_net_chroot)		= "";
 our($def_net_interface)		= "127.0.0.1";
 our($def_net_port)		= "10040";
 our($def_net_proto)		= "tcp";
+our($def_net_umask)		= "0111";
 our($def_net_user)		= "nobody";
 our($def_net_group)		= "nobody";
 our($def_dns_queuesize)		= "300";
@@ -201,7 +202,7 @@ our($SepReq)	= '///';
 our($SepLst)	= ':::';
 our($KeyVal)    = qr/^([^=]+)=(.*)$/;
 use vars qw(
-	@Configs @Rules @CacheID @DNSBL_Text @Plugins
+	@Configs @Rules @CacheID @DNSBL_Text @Plugins @Rate_Items
 	%Config_Cache %DNS_Cache %Request_Cache %Rule_by_ID
 	%Matches %opt_scores %ACLs %Rates %Timeouts
 	%postfwd_items %postfwd_items_plugin
@@ -212,7 +213,7 @@ use vars qw(
 	$Starttime $Startdate $Cleanup_Requests
 	$Cleanup_RBLs $Cleanup_Rates $Cleanup_Timeouts
 	$opt_daemon $opt_instantconfig $opt_nodns $opt_nodnslog
-	$opt_norulelog $opt_summary $net_interface $net_port
+	$opt_norulelog $opt_summary $net_interface $net_port $net_umask
 	$net_user $net_group $net_chroot $net_pid $net_proto
 	$opt_perfmon $opt_test $opt_verbose $opt_noidlestats
 	$opt_cache_rdomain_only $opt_cache_no_size $config_timeout
@@ -576,6 +577,27 @@ sub prepare_item {
 	};
 };
 #
+# compatibility for old "rate"-syntax
+#
+sub check_for_old_syntax {
+  my($myindex,$myfile,$mynum,$mykey,$myvalue) = @_;
+  if ($mykey =~ /^action$/) {
+    if ($myvalue =~ /^(\w[\-\w]+)\s*\(\s*(.*?)\s*\)$/) {
+        my($mycmd,$myarg) = ($1, $2);
+        if ($mycmd =~ /^(rate|size|rcpt)$/i) {
+          if ($myarg =~ /^\$\$(.*)$/) {
+            $myarg = $1;
+            $myvalue = "$mycmd($myarg)";
+            mylogs "notice", "notice: Rule $myindex ($myfile line $mynum): "
+            ."removing obsolete '\$\$' for $mycmd limit index. See man page for new syntax." if $opt_verbose;
+          };
+          push @Rate_Items, (split '/', $myarg)[0];
+        };
+    };
+  };
+  return $myvalue;
+};
+#
 # parses configuration line
 #
 sub parse_config_line {
@@ -601,6 +623,7 @@ sub parse_config_line {
 						." overriding $mykey=\"".$myrule{$mykey}."\""
 						." with $mykey=\"$myvalue\""
 						if (defined $myrule{$mykey});
+					$myvalue = check_for_old_syntax($myindex,$myfile,$mynum,$mykey,$myvalue);
 					$myrule{$mykey} = $myvalue;
 				} elsif ($mykey =~ /^$COMP_CSV$/) {
 					$myvalue =~ s/\s*,\s*/,/g;
@@ -663,7 +686,7 @@ sub read_config {
     my($mytype,$myitem,$config);
 
     # init, cleanup cache and config vars
-    @Rules = %Rule_by_ID = %Request_Cache = %Rates = ();
+    @Rules = %Rule_by_ID = %Request_Cache = %Rates = @Rate_Items = ();
 
     # parse configurations
     for $config (@Configs) {
@@ -693,6 +716,8 @@ sub read_config {
     } else {
 	# update Rule by ID hash
 	map { $Rule_by_ID{$Rules[$_]{$COMP_ID}} = $_ } (0 .. $#Rules);
+	@Rate_Items = uniq(@Rate_Items) if @Rate_Items;
+	mylogs $syslog_priority, "rate items: ".(join ', ', @Rate_Items) if $opt_verbose;
     };
 }
 #
@@ -874,6 +899,7 @@ sub rbl_check {
 				if $opt_verbose;
 			push @DNSBL_Text, $DNS_Cache{$myquery}{type}.':'.$DNS_Cache{$myquery}{name}.':<'.($DNS_Cache{$myquery}{TXT} || '').'>'
 				if (defined $DNS_Cache{$myquery}{type} and defined $DNS_Cache{$myquery}{name});
+			last ANSWER;
 		};
 	};
     };
@@ -885,7 +911,7 @@ sub rbl_check {
 sub dns_query {
     my (@queries) = @_; undef my @result;
     eval {
-	local $SIG{__DIE__} = sub { mylogs 'notice', "dns err: \"$!\", detail: \"@_\""; };
+	local $SIG{__DIE__} = sub { mylogs 'notice', "dns err: \"$!\", detail: \"@_\""; return if $^S; };
 	@result = dns_query_net_dns(@queries);
     };
     return @result;
@@ -1008,9 +1034,19 @@ sub postfwd_items {
 		my($myresult) = ($val and $myitem);
 		mylogs $syslog_priority, "type cidr :  \"$myitem\"  \"$cmp\"  \"$val\"" if ($opt_verbose > 1);
 		if ($myresult) {
-			return $myresult if ( ($val eq '0.0.0.0/0') and ($myitem =~ /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) );
-			$val .= '/32' unless ($val =~ /\/\d{1,2}$/);
-			$myresult = cidr_match((cidr_parse($val)),$myitem);
+			# always true
+			$myresult = ($val eq '0.0.0.0/0');
+			unless ($myresult) {
+				# v4 addresses only 
+				$myresult = ($myitem =~ /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
+				if ($myresult) {
+					$val .= '/32' unless ($val =~ /\/\d{1,2}$/);
+					$myresult = cidr_match((cidr_parse($val)),$myitem);
+				} else {
+					mylogs $syslog_priority, "Non IPv4 address. Using type default" if ($opt_verbose > 1);
+					return &{$postfwd_compare{default}}($cmp,$val,$myitem,%request);
+				};
+			};
 		};
 		$myresult = not($myresult) if ($cmp eq '!=');
 		return $myresult;
@@ -1313,6 +1349,8 @@ sub postfwd_items {
 		my($myaction) = $default_action; my($stop) = 0;
 		my($ratetype,$ratecount,$ratetime,$ratecmd) = split "/", $myarg, 4;
 		if ($ratetype and $ratecount and $ratetime and $ratecmd) {
+		  if ( defined $request{$ratetype} ) {
+			$ratetype .= "=".$request{$ratetype};
 			unless ( defined $Rates{$ratetype} ) {
 				$Rates{$ratetype} = {
 					type 		=> $mycmd,
@@ -1328,6 +1366,9 @@ sub postfwd_items {
 					." [type: ".$mycmd.", max: ".$ratecount.", time: ".$ratetime."s]"
 					if ($opt_verbose > 1);
 			};
+		  } else {
+			mylogs $syslog_priority, "[RULES] ".$myline.", ignoring empty index for ".$mycmd." limit '".$ratetype."'" if ($opt_verbose > 1);
+		  };
 		} else {
 			mylogs "notice", "[RULES] ".$myline.", ignoring unknown ".$mycmd."() attribute \'".$myarg."\'";
 		};
@@ -1558,7 +1599,7 @@ sub compare_rule {
 	mylogs "notice", "[DNSQUERY] skipping rbls: $timed - too much timeouts" if $timed;
 
 	push @queries, rbl_prepare_lookups ( $COMP_RBL_KEY, $request{reverse_address}, @{$Rules[$index]{$COMP_RBL_KEY}} )
-		if ( exists($Rules[$index]{$COMP_RBL_KEY}) );
+		if ( exists($Rules[$index]{$COMP_RBL_KEY}) and not($request{client_address} =~ /:/) );
 	push @queries, rbl_prepare_lookups ( $COMP_RHSBL_KEY, $request{client_name}, @{$Rules[$index]{$COMP_RHSBL_KEY}} )
 		if ( exists($Rules[$index]{$COMP_RHSBL_KEY}) and not($request{client_name} eq "unknown") );
 	push @queries, rbl_prepare_lookups ( $COMP_RHSBL_KEY_CLIENT, $request{client_name}, @{$Rules[$index]{$COMP_RHSBL_KEY_CLIENT}} )
@@ -1818,31 +1859,35 @@ sub smtpd_access_policy {
     };
 
     # increase rate limits
-    RATES: foreach $checkreq (keys %request) {
-	next RATES unless ( $request{$checkreq} and (defined $Rates{$request{$checkreq}}) );
-	if ( ($now - $Rates{$request{$checkreq}}{"time"}) > $Rates{$request{$checkreq}}{ttl} ) {
+    if (@Rate_Items) {
+      RATES: foreach $checkreq (@Rate_Items) {
+	next RATES unless $request{$checkreq};
+	my $checkval = $checkreq."=".$request{$checkreq};
+	next RATES unless ( defined $Rates{$checkval});
+	if ( ($now - $Rates{$checkval}{"time"}) > $Rates{$checkval}{ttl} ) {
 		# renew rate
-		$Rates{$request{$checkreq}}{count} = ( ($Rates{$request{$checkreq}}{type} eq 'size') ? $request{size} :
-			(($Rates{$request{$checkreq}}{type} eq 'rcpt') ? $request{recipient_count} : 1 ) );
-		$Rates{$request{$checkreq}}{"time"} = $now;
-		mylogs $syslog_priority, "[RATE] renewing rate object ".$request{$checkreq}
-			." [type: ".$Rates{$request{$checkreq}}{type}
-			.", max: ".$Rates{$request{$checkreq}}{maxcount}
-			.", time: ".$Rates{$request{$checkreq}}{ttl}."s]"
+		$Rates{$checkval}{count} = ( ($Rates{$checkval}{type} eq 'size') ? $request{size} :
+			(($Rates{$checkval}{type} eq 'rcpt') ? $request{recipient_count} : 1 ) );
+		$Rates{$checkval}{"time"} = $now;
+		mylogs $syslog_priority, "[RATE] renewing rate object '".$checkval."'"
+			." [type: ".$Rates{$checkval}{type}
+			.", max: ".$Rates{$checkval}{maxcount}
+			.", time: ".$Rates{$checkval}{ttl}."s]"
 			if ($opt_verbose > 1);
 	} else {
 		# increase rate
-		$Rates{$request{$checkreq}}{count} += ( ($Rates{$request{$checkreq}}{type} eq 'size') ? $request{size} :
-			(($Rates{$request{$checkreq}}{type} eq 'rcpt') ? $request{recipient_count} : 1 ) );
-		mylogs $syslog_priority, "[RATE] increasing rate object ".$request{$checkreq}
-			." to ".$Rates{$request{$checkreq}}{count}
-			." [type: ".$Rates{$request{$checkreq}}{type}
-			.", max: ".$Rates{$request{$checkreq}}{maxcount}
-			.", time: ".$Rates{$request{$checkreq}}{ttl}."s]"
+		$Rates{$checkval}{count} += ( ($Rates{$checkval}{type} eq 'size') ? $request{size} :
+			(($Rates{$checkval}{type} eq 'rcpt') ? $request{recipient_count} : 1 ) );
+		mylogs $syslog_priority, "[RATE] increasing rate object '".$checkval."'"
+			." to ".$Rates{$checkval}{count}
+			." [type: ".$Rates{$checkval}{type}
+			.", max: ".$Rates{$checkval}{maxcount}
+			.", time: ".$Rates{$checkval}{ttl}."s]"
 			if ($opt_verbose > 1);
-		$ratehit = $checkreq if ($Rates{$request{$checkreq}}{count} > $Rates{$request{$checkreq}}{maxcount});
-		last RATES if $ratehit;
 	};
+	$ratehit = ($Rates{$checkval}{count} > $Rates{$checkval}{maxcount}) ? $checkval : undef;
+	last RATES if $ratehit;
+      };
     };
 
     # Request cache enabled?
@@ -1885,10 +1930,10 @@ sub smtpd_access_policy {
     if ( $ratehit ) {
 
 	$Counter_Rates++;
-	$Matches{$Rates{$request{$ratehit}}{rule}}++;
-	$myaction = $Rates{$request{$ratehit}}{action};
-	mylogs $syslog_priority, "[RATE] rule=".$Rule_by_ID{$Rates{$request{$ratehit}}{rule}}
-		. ", id=".$Rates{$request{$ratehit}}{rule}
+	$Matches{$Rates{$ratehit}{rule}}++;
+	$myaction = $Rates{$ratehit}{action};
+	mylogs $syslog_priority, "[RATE] rule=".$Rule_by_ID{$Rates{$ratehit}{rule}}
+		. ", id=".$Rates{$ratehit}{rule}
 		. ", client=".$request{client_name}."[".$request{client_address}."]"
 		. ", sender=<".(($request{sender} eq '<>') ? "" : $request{sender}).">"
 		. ", recipient=<".$request{recipient}.">"
@@ -1896,10 +1941,10 @@ sub smtpd_access_policy {
 		. ", proto=".$request{protocol_name}
 		. ", state=".$request{protocol_state}
 		. ", delay=".(time - $now)."s"
-		. ", action=".$myaction." (item: ".$request{$ratehit}
-		. ", type: ".$Rates{$request{$ratehit}}{type}
-		. ", count: ".$Rates{$request{$ratehit}}{count}."/".$Rates{$request{$ratehit}}{maxcount}
-		. ", time: ".($now - $Rates{$request{$ratehit}}{"time"})."/".$Rates{$request{$ratehit}}{ttl}."s)"
+		. ", action=".$myaction." (item: '".$ratehit."'"
+		. ", type: ".$Rates{$ratehit}{type}
+		. ", count: ".$Rates{$ratehit}{count}."/".$Rates{$ratehit}{maxcount}
+		. ", time: ".($now - $Rates{$ratehit}{"time"})."/".$Rates{$ratehit}{ttl}."s)"
 		unless $opt_norulelog;
 
     # check cache
@@ -2071,6 +2116,7 @@ GetOptions (	"term|kill|stop|k"	 => \$opt_kill,
 		'proto=s'		 => \$net_proto,
 		'R|chroot=s'		 => \$net_chroot,
 		'pid|pidfile=s'		 => \$net_pid,
+		'umask=s'		 => \$net_umask,
 		'u|user=s'		 => \$net_user,
 		'g|group=s'		 => \$net_group,
 		'dns_queuesize=s'	 => \$dns_queuesize,
@@ -2102,6 +2148,7 @@ GetOptions (	"term|kill|stop|k"	 => \$opt_kill,
 		'r|rule=s'		 => sub{ my($opt,$value) = @_; push (@Configs, $opt.'::'.$value) },
 		'plugins=s'	 	=> \@Plugins,
 		'V|version'		 => sub{ print "$NAME $VERSION (Net::DNS ".(Net::DNS->VERSION || '<undef>').", Net::Server ".(Net::Server->VERSION || '<undef>').", Sys::Syslog ".($Sys::Syslog::VERSION || '<undef>').", Perl ".$]." on ".$^O.")\n"; exit 1; },
+		'versionshort|shortversion' => sub{ print "$VERSION\n"; exit 1; },
 		'C|showconfig'		 => \$opt_showconfig,
 		'h|H|?|help|Help|HELP'	 => sub{ pod2usage (-msg => "\nPlease see \"".$NAME." -m\" for detailed instructions.\n", -verbose => 1); },
 		'm|M|manual'		 => sub{ # contructing command string (de-tainting $0)
@@ -2168,6 +2215,7 @@ get_plugins (@Plugins) if @Plugins;
 $net_interface	||= $def_net_interface;
 $net_port	||= $def_net_port;
 $net_proto	||= $def_net_proto;
+$net_umask 	||= $def_net_umask;
 $net_user 	||= $def_net_user;
 $net_group 	||= $def_net_group;
 $net_chroot 	||= $def_net_chroot;
@@ -2180,6 +2228,7 @@ $syslog_name	||= $NAME;
 $net_interface	= ( $net_interface	=~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/ )	? $1 : $def_net_interface;
 $net_port 	= ( $net_port		=~ /^(\d+|[-\|\@\/\w. ]+)$/ )			? $1 : $def_net_port;
 $net_proto 	= ( $net_proto		=~ /^(tcp|unix)$/i )				? $1 : $def_net_proto;
+$net_umask 	= ( $net_umask		=~ /^([0-7]+)$/ ) 				? $1 : $def_net_umask;
 $net_user 	= ( $net_user		=~ /^([\w]+)$/ ) 				? $1 : $def_net_user;
 $net_group 	= ( $net_group		=~ /^([\w]+)$/ ) 				? $1 : $def_net_group;
 $net_chroot 	= ( $net_chroot		=~ /^(.+)$/ ) 					? $1 : $def_net_chroot;
@@ -2224,6 +2273,7 @@ if ($opt_daemon) {
 	}, 'postfwd';
 
 	## run the servers main loop
+	umask oct($net_umask);
 	$server->run;
 
 	# ignore syslog failures
@@ -2253,7 +2303,7 @@ if ($opt_daemon) {
 		mylogs $syslog_priority, "successfully installed signal handlers" if $opt_verbose;
 
 		# process init
-		umask 0077;
+		umask oct($net_umask);
 		setlocale(LC_ALL, 'C');
 		$0 = $0." ".join(" ",@CommandArgs);
 		chdir "/" or fatal_exit "Could not chdir to /";
@@ -2329,6 +2379,7 @@ postfwd [OPTIONS] [SOURCE1, SOURCE2, ...]
             --proto <proto>         socket type (tcp or unix)
 	-u, --user <name>           set uid to user <name>
 	-g, --group <name>          set gid to group <name>
+	    --umask <mask>	    set umask for file permissions
 	-R, --chroot <path>         chroot the daemon to <path>
 	    --pidfile <path>        create pidfile under <path>
 	-l, --logname <label>       label for syslog messages
@@ -2758,10 +2809,11 @@ postfwd actions control the behaviour of the program. Currently you can specify 
 	this command creates a counter for the given <item>, which will be increased any time a request
 	containing it arrives. if it exceeds <max> within <time> seconds it will return <action> to postfix.
 	rate counters are very fast as they are executed before the ruleset is parsed.
+	please note that <action> is currently limited to postfix actions (no postfwd actions)!
 	    # no more than 3 requests per 5 minutes
 	    # from the same "unknown" client
 	    id=RATE01 ;  client_name==unknown ; \
-	       action==rate($$client_address/3/300/450 4.7.1 sorry, max 3 requests per 5 minutes)
+	       action==rate(client_address/3/300/450 4.7.1 sorry, max 3 requests per 5 minutes)
 
 	size (<item>/<max>/<time>/<action>)
 	this command works similar to the rate() command with the difference, that the rate counter is
@@ -2769,7 +2821,7 @@ postfwd actions control the behaviour of the program. Currently you can specify 
 	smtpd_end_of_data_restrictions. if you want to be sure, you could check it within the ruleset:
 	   # size limit 1.5mb per hour per client
 	   id=SIZE01 ;  state==END_OF_DATA ;  client_address==!!(10.1.1.1); \
-	      action==size($$client_address/1572864/3600/450 4.7.1 sorry, max 1.5mb per hour)
+	      action==size(client_address/1572864/3600/450 4.7.1 sorry, max 1.5mb per hour)
 
 	rcpt (<item>/<max>/<time>/<action>)
 	this command works similar to the rate() command with the difference, that the rate counter is
@@ -2778,7 +2830,7 @@ postfwd actions control the behaviour of the program. Currently you can specify 
 	check it within the ruleset:
 	   # recipient count limit 3 per hour per client
 	   id=RCPT01 ;  state==END_OF_DATA ;  client_address==!!(10.1.1.1); \
-	      action==rcpt($$client_address/3/3600/450 4.7.1 sorry, max 3 recipients per hour)
+	      action==rcpt(client_address/3/3600/450 4.7.1 sorry, max 3 recipients per hour)
 
 	ask (<addr>:<port>[:<ignore>])
 	allows to delegate the policy decision to another policy service (e.g. postgrey). the first
@@ -2942,6 +2994,11 @@ The following arguments will control it's behaviour in this case.
 
 	-g, --group <name>
 	Changes real and effective group to <name>.
+
+	--umask <mask>
+	Changes the umask for filepermissions (unix domain sockets, pidfiles).
+	Attention: This is umask, not chmod - you have to specify the bits that
+	should NOT apply. E.g.: umask 077 equals to chmod 700.
 
 	-R, --chroot <path>
 	Chroot the process to the specified path.
@@ -3144,9 +3201,10 @@ the '-I' switch to have your configuration refreshed for every request postfwd r
 	# 1. 30MB for systems in *.customer1.tld
 	# 2. 20MB for SASL user joejob
 	# 3. 10MB default
-	id=SZ001; state==END-OF-MESSAGE; action=REJECT message too large; size=30000000 ; client_name=\.customer1.tld$
-	id=SZ002; state==END-OF-MESSAGE; action=REJECT message too large; size=20000000 ; sasl_username==joejob
-	id=SZ003; state==END-OF-MESSAGE; action=REJECT message too large; size=10000000
+	id=SZ001; state==END-OF-MESSAGE; action=DUNNO; size<=30000000 ; client_name=\.customer1.tld$
+	id=SZ002; state==END-OF-MESSAGE; action=DUNNO; size<=20000000 ; sasl_username==joejob
+	id=SZ002; state==END-OF-MESSAGE; action=DUNNO; size<=10000000
+	id=SZ100; state==END-OF-MESSAGE; action=REJECT message too large
 
 	## Selective Greylisting
 	# 1. if listed on zen.spamhaus.org with results 127.0.0.10 or .11, dns cache timeout 1200s
@@ -3195,9 +3253,9 @@ the '-I' switch to have your configuration refreshed for every request postfwd r
 	# 1. exceeded 30 requests per hour or
 	# 2. tried to send more than 1.5mb within 10 minutes
 	id=RATE01 ;  client_name==unknown ;  state==RCPT ; \
-		action==rate($$client_address/30/3600/450 4.7.1 sorry, max 30 requests per hour)
+		action==rate(client_address/30/3600/450 4.7.1 sorry, max 30 requests per hour)
 	id=SIZE01 ;  client_name==unknown ;  state==END_OF_DATA ; \
-		action==size($$client_address/1572864/600/450 4.7.1 sorry, max 1.5mb per 10 minutes)
+		action==size(client_address/1572864/600/450 4.7.1 sorry, max 1.5mb per 10 minutes)
 
 	## Macros
         # definition
