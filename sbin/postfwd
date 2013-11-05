@@ -16,6 +16,7 @@ use Sys::Syslog qw(:DEFAULT setlogsock);
 use Getopt::Long 2.25 qw(:config no_ignore_case bundling);
 use POSIX qw(setsid setuid setgid setlocale strftime LC_ALL);
 # Networking
+use IO::Socket qw(SOCK_STREAM);
 use Net::DNS;
 use Net::Server::Multiplex;
 use vars qw(@ISA);
@@ -24,16 +25,16 @@ use vars qw(@ISA);
 
 # Program constants
 our($NAME) 			= 'postfwd';
-our($VERSION)			= '1.10pre8b';
+our($VERSION)			= '1.14';
 
 # Networking options (use -i, -p and -R to change)
 our($def_net_pid)		= "/var/run/".$NAME.".pid";
 our($def_net_chroot)		= "";
 our($def_net_interface)		= "127.0.0.1";
 our($def_net_port)		= "10040";
+our($def_net_proto)		= "tcp";
 our($def_net_user)		= "nobody";
 our($def_net_group)		= "nobody";
-our($def_net_proto)		= "tcp";
 our($def_dns_queuesize)		= "300";
 our($def_dns_retries)		= "3";
 our($def_dns_timeout)		= "14";
@@ -99,8 +100,9 @@ our($COMP_NS_NAME)		= "sender_ns_names";
 our($COMP_NS_ADDR)		= "sender_ns_addrs";
 our($COMP_MX_NAME)		= "sender_mx_names";
 our($COMP_MX_ADDR)		= "sender_mx_addrs";
+our($COMP_HELO_ADDR)		= "helo_address";
 # networks in CIDR notation (a.b.c.d/nn)
-our($COMP_NETWORK_CIDRS)	= "(client_address|sender_(ns|mx)_addrs)";
+our($COMP_NETWORK_CIDRS)	= "(client_address|sender_(ns|mx)_addrs|helo_address)";
 # RBL checks
 our($COMP_DNSBL_TEXT)		= "dnsbltext";
 our($COMP_RBL_CNT)		= "rblcount";
@@ -124,8 +126,7 @@ our($COMP_HITS)			= "request_hits";
 # item match counter
 our($COMP_MATCHES)		= "matches";
 # separator
-#our($COMP_SEPARATOR)		= "[=\~\<\>]?=";
-our($COMP_SEPARATOR)		= "[=\~\<\>]?=|=[=\~\<\>]";
+our($COMP_SEPARATOR)		= "[=\~\<\>]=|[=\!][=\~\<\>]|=";
 # macros
 our($COMP_ACL)			= "[\&][\&]";
 # negation
@@ -184,6 +185,9 @@ our(%weekdays) 					= (
 	"Fri" => 5, "fri" => 5, "FRI" => 5,
 	"Sat" => 6, "sat" => 6, "SAT" => 6,
 );
+our($SepReq)	= '///';
+our($SepLst)	= ':::';
+our($KeyVal)    = qr/^([^=]+)=(.*)$/;
 use vars qw(
 	@Configs @Rules @CacheID @DNSBL_Text @Plugins
 	%Config_Cache %DNS_Cache %Request_Cache %Rule_by_ID
@@ -191,17 +195,17 @@ use vars qw(
 	%postfwd_items %postfwd_items_plugin
 	%postfwd_compare %postfwd_compare_plugin
 	%postfwd_actions %postfwd_actions_plugin
-	$Counter_Requests $Counter_Hits
+	$Counter_Requests $Counter_Hits $opt_max_ns_lookups $opt_max_mx_lookups
 	$Counter_Interval $Counter_Top $Counter_Rates
 	$Starttime $Startdate $Cleanup_Requests
 	$Cleanup_RBLs $Cleanup_Rates $Cleanup_Timeouts
 	$opt_daemon $opt_instantconfig $opt_nodns $opt_nodnslog
-	$opt_summary $net_interface $net_port
-	$net_user $net_group $net_chroot $net_pid
-	$opt_perfmon $opt_test $opt_verbose
+	$opt_norulelog $opt_summary $net_interface $net_port
+	$net_user $net_group $net_chroot $net_pid $net_proto
+	$opt_perfmon $opt_test $opt_verbose $opt_noidlestats
 	$opt_cache_rdomain_only $opt_cache_no_size
-	$opt_cache_no_sender $opt_no_rulestats
-	$opt_showconfig $opt_stdoutlog $opt_shortlog
+	$opt_cache_no_sender $opt_no_rulestats $opt_kill $opt_hup
+	$opt_showconfig $opt_stdoutlog $opt_shortlog $dns_async_txt
 	$DNS $Reload_Conf $dns_queuesize $dns_retries $dns_timeout
 );
 
@@ -266,10 +270,23 @@ sub fatal_exit {
 # finish program
 #
 sub end_program {
+    undef $opt_noidlestats;
     show_stats() if $opt_summary;
+    $net_pid ||= $def_net_pid; unlink $net_pid if (-T $net_pid);
     mylogs "notice", $NAME." ".$VERSION." terminated" if $opt_daemon;
     exit;
 };
+# get pid of running master process
+sub get_master_pid {
+    $net_pid ||= $def_net_pid;
+    (-e $net_pid) or die $NAME.": Can not find pid_file ".$net_pid.": $!\n";
+    (-T $net_pid) or die $NAME.": Can not open pid_file ".$net_pid.": not a textfile\n";
+    open PIDFILE, "<".$net_pid or die $NAME.": Can open pid_file ".$net_pid.": $!\n";
+    my $pid = <PIDFILE>;
+    ($pid =~ m/^(\d+)$/) or die $NAME.": Invalid pid_file content '$pid' (pid_file ".$net_pid.")\n";
+    return $1;
+};
+
 #
 # run a shell command
 #
@@ -291,13 +308,32 @@ sub uniq {
     return grep(!$uniq{$_}++, @_);
 };
 #
+# hash -> scalar
+#
+sub hash_to_str {
+	my %request = @_; my $result  = '';
+	map { $result .= $SepReq."$_=".((ref $request{$_} eq 'ARRAY') ? (join $SepLst, @{$request{$_}}) : ($request{$_} || '')) } (keys %request);
+	return $result;
+};
+#
+# scalar -> hash
+#
+sub str_to_hash {
+	my $request = shift; my %result  = ();
+	foreach (split $SepReq, $request) {
+		next unless m/$KeyVal/;
+		my @items = split $SepLst, $2;
+		($#items) ? @{$result{$1}} = @items : $result{$1} = $2;
+	}; return %result;
+};
+#
 # get ip and mask
 #
 sub cidr_parse
 {
     defined $_[0] or return undef;
     $_[0] =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)\/(\d+)$/ or return undef;
-    $1 < 256 and $2 < 256 and $3 < 256 and $4 < 256 and $5 <= 32 and $5 > 0
+    $1 < 256 and $2 < 256 and $3 < 256 and $4 < 256 and $5 <= 32 and $5 >= 0
 	or return undef;
     my $net = ($1<<24)+($2<<16)+($3<<8)+$4;
     my $mask = ~((1<<(32-$5))-1);
@@ -310,7 +346,7 @@ sub cidr_parse
 sub cidr_match
 {
     my ($net, $mask, $addr) = @_;
-    return undef unless defined $net and defined $mask and defined $addr;
+    return undef unless defined $net and defined $addr;
     if($addr =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
 	$addr =  ($1<<24)+($2<<16)+($3<<8)+$4;
     };
@@ -324,16 +360,16 @@ sub cleanup_dns_cache {
     my($now) = $_[0];
     foreach my $checkitem (keys %DNS_Cache) {
 	# remove inclomplete objects (dns timeouts)
-	if ( !defined($DNS_Cache{$checkitem}{time}) or !defined($DNS_Cache{$checkitem}{time}) ) {
+	if ( !defined($DNS_Cache{$checkitem}{"time"}) or !defined($DNS_Cache{$checkitem}{ttl}) ) {
 		mylogs $syslog_priority, "[CLEANUP] deleting incomplete dns-cache item $checkitem after "
-			.((defined $DNS_Cache{$checkitem}{time}) ? ($now - $DNS_Cache{$checkitem}{time}) : '<undef>')
+			.((defined $DNS_Cache{$checkitem}{"time"}) ? ($now - $DNS_Cache{$checkitem}{"time"}) : '<undef>')
 			." seconds (timeout: ".((defined $DNS_Cache{$checkitem}{ttl}) ? $DNS_Cache{$checkitem}{ttl} : '<undef>')."s)"
 			if ($opt_verbose > 1);
 		delete $DNS_Cache{$checkitem};
 	# remove timed out objects
-	} elsif ( ($now - $DNS_Cache{$checkitem}{time}) > $DNS_Cache{$checkitem}{ttl} ) {
+	} elsif ( ($now - $DNS_Cache{$checkitem}{"time"}) > $DNS_Cache{$checkitem}{ttl} ) {
 		mylogs $syslog_priority, "[CLEANUP] removing rbl-cache for $checkitem after "
-			.($now - $DNS_Cache{$checkitem}{time})." seconds (timeout: ".$DNS_Cache{$checkitem}{ttl}."s)"
+			.($now - $DNS_Cache{$checkitem}{"time"})." seconds (timeout: ".$DNS_Cache{$checkitem}{ttl}."s)"
 			if ($opt_verbose > 1);
 		delete $DNS_Cache{$checkitem};
 	};
@@ -345,9 +381,9 @@ sub cleanup_dns_cache {
 sub cleanup_request_cache {
     my($now) = $_[0];
     foreach my $checkitem (keys %Request_Cache) {
-	if ( (($now - $Request_Cache{$checkitem}{time}) > $REQUEST_MAX_CACHE) ) {
+	if ( (($now - $Request_Cache{$checkitem}{"time"}) > $REQUEST_MAX_CACHE) ) {
 		mylogs $syslog_priority, "[CLEANUP] removing request-cache $checkitem after "
-			.($now - $Request_Cache{$checkitem}{time})." seconds (timeout: ".$REQUEST_MAX_CACHE."s)"
+			.($now - $Request_Cache{$checkitem}{"time"})." seconds (timeout: ".$REQUEST_MAX_CACHE."s)"
 			if ($opt_verbose > 1);
 		delete $Request_Cache{$checkitem};
 	};
@@ -359,9 +395,9 @@ sub cleanup_request_cache {
 sub cleanup_rate_cache {
     my($now) = $_[0];
     foreach my $checkitem (keys %Rates) {
-	if ( (($now - $Rates{$checkitem}{time}) > $Rates{$checkitem}{ttl}) ) {
+	if ( (($now - $Rates{$checkitem}{"time"}) > $Rates{$checkitem}{ttl}) ) {
 		mylogs $syslog_priority, "[CLEANUP] removing rate-cache for $checkitem after "
-			.($now - $Rates{$checkitem}{time})." seconds (timeout: ".$Rates{$checkitem}{ttl}."s)"
+			.($now - $Rates{$checkitem}{"time"})." seconds (timeout: ".$Rates{$checkitem}{ttl}."s)"
 			if ($opt_verbose > 1);
 		delete $Rates{$checkitem};
 	};
@@ -393,23 +429,24 @@ sub show_stats {
     my($lastreqpermin) = ($Counter_Interval / (((defined $Stat_Interval_Time) and ($Stat_Interval_Time > 0)) ? $Stat_Interval_Time : 1)) * 60;
     $Counter_Top = $lastreqpermin if ($lastreqpermin > $Counter_Top);
 
-    mylog "notice", "[STATS] Counters: %d seconds uptime since %s",
-	($now - $Starttime), $Startdate;
+    if (not($opt_noidlestats) or ($Counter_Interval > 0) ) {
+	mylog "notice", "[STATS] Counters: %d seconds uptime since %s",
+		($now - $Starttime), $Startdate;
 
-    mylog "notice", "[STATS] Requests: %d overall, %d last interval, %.2f%% cache hits, %.2f%% rate hits",
-	$Counter_Requests, $Counter_Interval,
-	($Counter_Requests > 0) ? (($Counter_Hits / $Counter_Requests) * 100) : 0,
-	($Counter_Requests > 0) ? (($Counter_Rates / $Counter_Requests) * 100) : 0;
+	mylog "notice", "[STATS] Requests: %d overall, %d last interval, %.2f%% cache hits, %.2f%% rate hits",
+		$Counter_Requests, $Counter_Interval,
+		($Counter_Requests > 0) ? (($Counter_Hits / $Counter_Requests) * 100) : 0,
+		($Counter_Requests > 0) ? (($Counter_Rates / $Counter_Requests) * 100) : 0;
 
-    mylog "notice", "[STATS] Averages: %.2f overall, %.2f last interval, %.2f top",
-	$totalreqpermin, $lastreqpermin, $Counter_Top;
+	mylog "notice", "[STATS] Averages: %.2f overall, %.2f last interval, %.2f top",
+		$totalreqpermin, $lastreqpermin, $Counter_Top;
 
-    mylog "notice", "[STATS] Contents: %d rules, %d cached requests, %d cached dns results, %d rate limits",
-	$#Rules, scalar keys %Request_Cache, scalar keys %DNS_Cache, scalar keys %Rates;
+	mylog "notice", "[STATS] Contents: %d rules, %d cached requests, %d cached dns results, %d rate limits",
+		$#Rules, scalar keys %Request_Cache, scalar keys %DNS_Cache, scalar keys %Rates;
 
-    # per rule stats
-    map { mylogs "notice", "[STATS] Rule ID: $_   matched: $Matches{$_} times" } (sort keys %Matches)
-	unless $opt_no_rulestats;
+	# per rule stats
+	map { mylogs "notice", "[STATS] Rule ID: $_   matched: $Matches{$_} times" } (sort keys %Matches) unless $opt_no_rulestats;
+    };
 
     $Counter_Interval = 0;
 };
@@ -465,7 +502,7 @@ sub acl_parser {
 sub parse_config_line {
     my($mynum, $myindex, $myline) = @_;
     my(%myrule) = ();
-    my($mykey, $myvalue, $mycomp);
+    my($mykey, $myvalue, $mycomp, $neg);
 
     if ( $myline = acl_parser ($myline) ) {
 	unless ( $myline =~ /^\s*[^=\s]+\s*$COMP_SEPARATOR\s*([^;\s]+\s*)+(;\s*[^=\s]+\s*$COMP_SEPARATOR\s*([^;\s]+\s*)+)*[;\s]*$/ ) {
@@ -475,7 +512,7 @@ sub parse_config_line {
 		foreach (split ";", $myline) {
 			# remove whitespaces around
 			s/^\s*(.*?)\s*($COMP_SEPARATOR)\s*(.*?)\s*$/$1$2$3/;
-			$mycomp = $2;
+			( ($mycomp = $2) =~ /^([\<\>\~])=$/ ) and $mycomp = "=$1";
 			($mykey, $myvalue) = split /$COMP_SEPARATOR/, $_, 2;
 			if ($mykey =~ /^$COMP_CSV$/) {
 				$myvalue =~ s/\s*-\s*/-/g if ($mykey =~ /^$COMP_DATECALC$/);
@@ -488,6 +525,16 @@ sub parse_config_line {
 					if (defined $myrule{$mykey});
 				$myrule{$mykey} = $myvalue;
 			} else {
+				if ( $mycomp eq '=~' or $mycomp eq '!~') {
+					# temporarily remove negation
+					$myvalue = $neg if ($neg = deneg_item($myvalue));
+					# allow // regex
+					$myvalue =~ s/^\/?(.*?)\/?$/$1/;
+					# tested, slower
+					#$myvalue = qr/$myvalue/i;
+					# re-enable negation
+					$myvalue = "!!($myvalue)" if $neg;
+				};
 				push ( @{$myrule{$mykey}}, $mycomp.";".$myvalue );
 			};
 		};
@@ -649,9 +696,9 @@ sub rbl_read_dns {
 						.", time: ".($now - $DNS_Cache{$que}{starttime})."s"
 						.", ttl: ".$ttl."s)"
 						if ( @addrs and not($opt_nodnslog) );
-					@{$DNS_Cache{$que}{A}}	= @addrs;
-					$DNS_Cache{$que}{time}	= $now;
-					$DNS_Cache{$que}{ttl}	= $ttl;
+					@{$DNS_Cache{$que}{A}}		= @addrs;
+					$DNS_Cache{$que}{"time"}	= $now;
+					$DNS_Cache{$que}{ttl}		= $ttl;
 				} elsif ($typ eq 'TXT') {
 					$res ||= '';
 					# ugly, commas need to be escaped for set() action
@@ -669,6 +716,7 @@ sub rbl_read_dns {
     } else {
 	syslog "notice", "[DNSBL] dns timeout";
     };
+    return $que if (@addrs || $res);
 };
 #
 # fires DNS queries
@@ -744,7 +792,7 @@ sub rbl_check {
 		if ( $myresult = ( ($_) and ($_ =~ /$myrblans/)) ) {
 			mylogs $syslog_priority, "[DNSBL] query $myval listed on "
 				.uc($mytype).":$myrbl (answer: ".(join ", ", @{$DNS_Cache{$myquery}{A}})
-				.", cached: ".($now - $DNS_Cache{$myquery}{time})."s ago)"
+				.", cached: ".($now - $DNS_Cache{$myquery}{"time"})."s ago)"
 				if $opt_verbose;
 			push @DNSBL_Text, $DNS_Cache{$myquery}{type}.':'.$DNS_Cache{$myquery}{name}.':<'.($DNS_Cache{$myquery}{TXT} || '').'>'
 				if (defined $DNS_Cache{$myquery}{type} and defined $DNS_Cache{$myquery}{name});
@@ -753,6 +801,68 @@ sub rbl_check {
     };
     return $myresult;
 }
+#
+# resolves dns queries
+#
+sub dns_query {
+    my (@queries) = @_; undef my @result;
+    my %ownsock  = (); my @ownready = (); undef my $bgsock;
+    my $ownsel   = IO::Select->new();
+    my $dns = Net::DNS::Resolver->new(
+	tcp_timeout => $dns_timeout,
+	udp_timeout => $dns_timeout,
+	persistent_tcp => 0, persistent_udp => 0,
+	retrans => 0, retry => 1, dnsrch => 0, defnames => 0,
+    );
+    # send queries
+    foreach (@queries) {
+	my ($item, $type) = split ','; $type ||= 'A';
+        # query child cache
+        if ( (defined $DNS_Cache{$item}{$type}) and (defined $DNS_Cache{$item}{'until'}) and ($DNS_Cache{$item}{'until'} >= time()) ) {
+            $DNS_Cache{$item}{$type} = [ $DNS_Cache{$item}{$type} ] unless (ref $DNS_Cache{$item}{$type} eq 'ARRAY');
+            mylogs $syslog_priority, "dnsccache: item=$item, type=$type -> ".(join ',', @{$DNS_Cache{$item}{$type}})." (ttl: ".($DNS_Cache{$item}{ttl} || 0).")" if ($opt_verbose);
+            push @result, @{$DNS_Cache{$item}{$type}};
+	} else {
+            mylogs $syslog_priority, "dnsquery: item=$item, type=$type" if ($opt_verbose);
+	    $bgsock = $dns->bgsend ($item, $type);
+	    $ownsel->add($bgsock);
+	    $ownsock{$bgsock} = $item.','.$type;
+	};
+    };
+    # retrieve answers
+    while ((scalar keys %ownsock) and (@ownready = $ownsel->can_read($dns_timeout))) {
+	foreach my $sock (@ownready) {
+	    if (defined $ownsock{$sock}) {
+		my $packet = $dns->bgread($sock);
+		my ($item, $type) = split ',', $ownsock{$sock};
+		my $rname = $DNS_REPNAMES{$type};
+		my @rrs = (grep { $_->type eq $type } $packet->answer);
+		my $ttl = 0; my @ans = ();
+		if (@rrs) {
+		    # sort MX records by preference
+		    @rrs = sort { $a->preference <=> $b->preference } @rrs if ($type eq 'MX');
+		    foreach my $rr (@rrs) {
+			mylogs $syslog_priority, "dnsanswer: item=$item, type=$type -> $rname=".$rr->$rname." (ttl: ".$rr->ttl.")" if $opt_verbose;
+			push @ans, $rr->$rname;
+		    };
+		    push @result, @ans;
+		};
+		# add to dns cache
+		$ttl ||= $DNS_MIN_CACHE;
+		@{$DNS_Cache{$item}{$type}} = @ans;
+		$DNS_Cache{$item}{ttl} = $ttl;
+		$DNS_Cache{$item}{'until'} = time() + $ttl;
+		delete $ownsock{$sock};
+	    } else {
+		$ownsel->remove($sock);
+		$sock = undef;
+	    };
+	};
+    };
+    # show timeouts
+    map { mylogs 'notice', "dnsquery: timeout for $_ after $dns_timeout seconds" } (values %ownsock);
+    return @result;
+};
 
 
 ## SUB plugins
@@ -776,6 +886,12 @@ sub rbl_check {
 		( $result{recipient_localpart}, $result{recipient_domain} ) = ( $1, $2 );
 		# reverted ip address (for lookups)
 		$result{reverse_address} = (join(".", reverse(split(/\./,$request{client_address}))));
+		return %result;
+	},
+	"sender_dns" => sub {
+		my(%request) = @_; my(%result) = ();
+		map { $result{$_} = $request{sender_domain} } ($COMP_NS_NAME, $COMP_NS_ADDR, $COMP_MX_NAME, $COMP_MX_ADDR);
+		$result{$COMP_HELO_ADDR} = $request{helo_name};
 		return %result;
 	},
 );
@@ -803,19 +919,11 @@ sub postfwd_items {
 		my($myresult) = ($val and $myitem);
 		mylogs $syslog_priority, "type cidr :  \"$myitem\"  \"$cmp\"  \"$val\"" if ($opt_verbose > 1);
 		if ($myresult) {
+			return $myresult if ( ($val eq '0.0.0.0/0') and ($myitem =~ /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) );
 			$val .= '/32' unless ($val =~ /\/\d{1,2}$/);
 			$myresult = cidr_match((cidr_parse($val)),$myitem);
 		};
-		return $myresult;
-	},
-	# ip address lists, type 'cidr'
-	"cidrlist" => sub {
-		my($cmp,$val,$myitem,%request) = @_;
-		my($myresult) = undef;
-		REPLY: foreach (@{$myitem}) {
-			$myresult = ( &{$postfwd_compare{cidr}}(($cmp,$val,$_,%request)) );
-			last REPLY if $myresult;
-		};
+		$myresult = not($myresult) if ($cmp eq '!=');
 		return $myresult;
 	},
 	"numeric" => sub {
@@ -823,10 +931,18 @@ sub postfwd_items {
 		my($myresult) = undef;
 		mylogs $syslog_priority, "type numeric :  \"$myitem\"  \"$cmp\"  \"$val\"" if ($opt_verbose > 1);
 		$myitem ||= "0"; $val ||= "0";
-		if (($cmp eq '<=') or ($cmp eq '=<')) {
-			$myresult = ($myitem <= $val);
-		} elsif ($cmp eq '==') {
+		if ( ($cmp eq '==') or ($cmp eq '=') ) {
 			$myresult = ($myitem == $val);
+		} elsif ($cmp eq '=<') {
+			$myresult = ($myitem <= $val);
+		} elsif ($cmp eq '=>') {
+			$myresult = ($myitem >= $val);
+		} elsif ($cmp eq '!=') {
+			$myresult = not($myitem == $val);
+		} elsif ($cmp eq '!<') {
+			$myresult = not($myitem <= $val);
+		} elsif ($cmp eq '!>') {
+			$myresult = not($myitem >= $val);
 		} else {
 			$myresult = ($myitem >= $val);
 		};
@@ -837,6 +953,7 @@ sub postfwd_items {
 		my($myresult) = not($opt_nodns);
 		mylogs $syslog_priority, "type rbl :  \"$myitem\"  \"$cmp\"  \"$val\"" if ($opt_verbose > 1);
 		$myresult = ( rbl_check ($COMP_RBL_KEY, $val, $myitem) ) if $myresult;
+		$myresult = not($myresult) if ($cmp eq '!=');
 		return $myresult;
 	},
 	$COMP_RHSBL_KEY => sub {
@@ -844,6 +961,7 @@ sub postfwd_items {
 		my($myresult) = not($opt_nodns);
 		mylogs $syslog_priority, "type rhsbl :  \"$myitem\"  \"$cmp\"  \"$val\"" if ($opt_verbose > 1);
 		$myresult = ( rbl_check ($COMP_RHSBL_KEY, $val, $myitem) ) if $myresult;
+		$myresult = not($myresult) if ($cmp eq '!=');
 		return $myresult;
 	},
 	$COMP_MONTHS => sub {
@@ -856,6 +974,7 @@ sub postfwd_items {
 		mylogs $syslog_priority, "type months :  \"$imon\"  \"$cmp\"  \"$rmin\"-\"$rmax\""
 			if ($opt_verbose > 1);
 		$myresult = (($rmin <= $imon) and ($rmax >= $imon));
+		$myresult = not($myresult) if ($cmp eq '!=');
 		return $myresult;
 	},
 	$COMP_DAYS => sub {
@@ -868,6 +987,7 @@ sub postfwd_items {
 		mylogs $syslog_priority, "type days :  \"$iday\"  \"$cmp\"  \"$rmin\"-\"$rmax\""
 			if ($opt_verbose > 1);
 		$myresult = (($rmin <= $iday) and ($rmax >= $iday));
+		$myresult = not($myresult) if ($cmp eq '!=');
 		return $myresult;
 	},
 	$COMP_DATE => sub {
@@ -881,6 +1001,7 @@ sub postfwd_items {
 		mylogs $syslog_priority, "type date :  \"$idat\"  \"$cmp\"  \"$rmin\"-\"$rmax\""
 			if ($opt_verbose > 1);
 		$myresult = (($rmin <= $idat) and ($rmax >= $idat));
+		$myresult = not($myresult) if ($cmp eq '!=');
 		return $myresult;
 	},
 	$COMP_TIME => sub {
@@ -894,6 +1015,72 @@ sub postfwd_items {
 		mylogs $syslog_priority, "type time :  \"$idat\"  \"$cmp\"  \"$rmin\"-\"$rmax\""
 			if ($opt_verbose > 1);
 		$myresult = (($rmin <= $idat) and ($rmax >= $idat));
+		$myresult = not($myresult) if ($cmp eq '!=');
+		return $myresult;
+	},
+	$COMP_HELO_ADDR => sub {
+		my($cmp,$val,$myitem,%request) = @_;
+		my($myresult) = undef;
+		return $myresult if $opt_nodns;
+		return $myresult unless $myitem =~ /\./;
+		if ( my @answers = dns_query ("$myitem,A") ) {
+			mylogs $syslog_priority, "type $COMP_HELO_ADDR : \"".(join ',', @answers)."\" \"$cmp\" \"$val\"" if ($opt_verbose > 1);
+			map { $myresult = ( &{$postfwd_compare{cidr}}(($cmp,$val,$_,%request)) ); return $myresult if $myresult } @answers;
+		};
+		return $myresult;
+	},
+	$COMP_NS_NAME => sub {
+		my($cmp,$val,$myitem,%request) = @_;
+		my($myresult) = undef;
+		return $myresult if $opt_nodns;
+		return $myresult unless $myitem =~ /\./;
+		if ( my @answers = dns_query ("$myitem,NS") ) {
+			mylogs $syslog_priority, "type $COMP_NS_NAME : \"".(join ',', @answers)."\" \"$cmp\" \"$val\"" if ($opt_verbose > 1);
+			map { $myresult = ( &{$postfwd_compare{default}}(($cmp,$val,$_,%request)) ); return $myresult if $myresult } @answers;
+		} else {
+			$myresult = ( &{$postfwd_compare{default}}(($cmp,$val,'',%request)) );
+		};
+		return $myresult;
+	},
+	$COMP_MX_NAME => sub {
+		my($cmp,$val,$myitem,%request) = @_;
+		my($myresult) = undef;
+		return $myresult if $opt_nodns;
+		return $myresult unless $myitem =~ /\./;
+		if ( my @answers = dns_query ("$myitem,MX") ) {
+			mylogs $syslog_priority, "type $COMP_MX_NAME : \"".(join ',', @answers)."\" \"$cmp\" \"$val\"" if ($opt_verbose > 1);
+			map { $myresult = ( &{$postfwd_compare{default}}(($cmp,$val,$_,%request)) ); return $myresult if $myresult } @answers;
+		} else {
+			$myresult = ( &{$postfwd_compare{default}}(($cmp,$val,'',%request)) );
+		};
+		return $myresult;
+	},
+	$COMP_NS_ADDR => sub {
+		my($cmp,$val,$myitem,%request) = @_;
+		my($myresult) = undef;
+		return $myresult if $opt_nodns;
+		return $myresult unless $myitem =~ /\./;
+		if ( my @answers = dns_query ("$myitem,NS") ) {
+			splice (@answers, $opt_max_ns_lookups) if $opt_max_ns_lookups;
+			if ( @answers = dns_query (@answers) ) {
+				mylogs $syslog_priority, "type $COMP_NS_ADDR : \"".(join ',', @answers)."\" \"$cmp\" \"$val\"" if ($opt_verbose > 1);
+				map { $myresult = ( &{$postfwd_compare{cidr}}(($cmp,$val,$_,%request)) ); return $myresult if $myresult } @answers;
+			};
+		};
+		return $myresult;
+	},
+	$COMP_MX_ADDR => sub {
+		my($cmp,$val,$myitem,%request) = @_;
+		my($myresult) = undef;
+		return $myresult if $opt_nodns;
+		return $myresult unless $myitem =~ /\./;
+		if ( my @answers = dns_query ("$myitem,MX") ) {
+			splice (@answers, $opt_max_mx_lookups) if $opt_max_mx_lookups;
+			if ( @answers = dns_query (@answers) ) {
+				mylogs $syslog_priority, "type $COMP_MX_ADDR : \"".(join ',', @answers)."\" \"$cmp\" \"$val\"" if ($opt_verbose > 1);
+				map { $myresult = ( &{$postfwd_compare{cidr}}(($cmp,$val,$_,%request)) ); return $myresult if $myresult } @answers;
+			};
+		};
 		return $myresult;
 	},
 	"default" => sub {
@@ -904,24 +1091,24 @@ sub postfwd_items {
 		$cmp = '==' if ( ($var) and ($cmp eq '=') );
 		if ($cmp eq '==') {
 			$myresult = ( lc($myitem) eq lc($val) ) if $myitem;
-		} elsif (($cmp eq '<=') or ($cmp eq '=<')) {
-			$myresult = ($myitem <= $val);
-		} elsif (($cmp eq '>=') or ($cmp eq '=>')) {
-			$myresult = ($myitem >= $val);
+		} elsif ( $cmp eq '=~' ) {
+			$myresult = ( $myitem =~ /$val/i );
+		} elsif ( $cmp eq '!~' ) {
+			$myresult = ( $myitem !~ /$val/i );
+		} elsif ($cmp eq '!=') {
+			$myresult = not( lc($myitem) eq lc($val) ) if $myitem;
+		} elsif ($cmp eq '=<') {
+			$myresult = (($myitem || 0) <= $val);
+		} elsif ($cmp eq '!<') {
+			$myresult = not(($myitem || 0) <= $val);
+		} elsif ($cmp eq '=>') {
+			$myresult = (($myitem || 0) >= $val);
+		} elsif ($cmp eq '!>') {
+			$myresult = not(($myitem || 0) >= $val);
 		} else {
 			# allow // regex
 			$val =~ s/^\/?(.*?)\/?$/$1/;
-			$myresult = ( $myitem =~ /$val/i ) if $myitem;
-		};
-		return $myresult;
-	},
-	# string lists, type: 'default'
-	"deflist" => sub {
-		my($cmp,$val,$myitem,%request) = @_;
-		my($myresult) = undef;
-		REPLY: foreach (@{$myitem}) {
-			$myresult = ( &{$postfwd_compare{default}}(($cmp,$val,$_,%request)) );
-			last REPLY if $myresult;
+			$myresult = ( $myitem =~ /$val/i );
 		};
 		return $myresult;
 	},
@@ -1087,6 +1274,45 @@ sub postfwd_items {
 		warn "[RULES] ".$myline." - error: command ".$mycmd."() has not been implemented yet - ignoring";
 		return ($stop,$index,$myaction,$myline,%request);
 	},
+	# ask() command
+	"ask"  => sub {
+		my($index,$now,$mycmd,$myarg,$myline,%request) = @_;
+		my($myaction) = $default_action; my($stop) = 0;
+		mylogs ('info', "Opening socket to '$myarg'") if ($opt_verbose > 1);
+		my($addr,$port,$ignore) = split ':', $myarg;
+		my %orig = str_to_hash ($request{orig});
+		if ( ($addr and $port) and my $socket = new IO::Socket::INET (
+			PeerAddr => $addr,
+			PeerPort => $port,
+			Proto    => 'tcp',
+			Timeout  => 9,
+			Type     => SOCK_STREAM	) ) {
+
+				my $sendstr = '';
+				foreach (keys %orig) {
+					$sendstr .= $_."=".$orig{$_}."\n";
+				};
+				$sendstr .= "\n";
+				mylogs ('info', "Asking service $myarg -> '$sendstr'") if ($opt_verbose > 1);
+				print $socket "$sendstr";
+				$sendstr = <$socket>;
+				chomp($sendstr);
+				mylogs ('info', "Answer from $myarg -> '$sendstr'") if ($opt_verbose > 1);
+				$sendstr =~ s/^(action=)//;
+				if ($1 and $sendstr) {
+					if ($ignore and ($sendstr =~ /$ignore/i)) {
+						mylogs ('info', "ignoring answer '$sendstr' from $myarg") if ($opt_verbose > 1);
+					} else {
+						$stop = $myaction = $sendstr;
+					};
+				} else {
+					mylogs ('notice', "rule: $index got invalid answer '$sendstr' from $myarg");
+				};
+		} else {
+			mylogs ('notice', "Could not open socket to '$myarg'");
+		};
+		return ($stop,$index,$myaction,$myline,%request);
+	},
 	# exec() command
 	"exec"	=> sub { return &{$postfwd_actions{file}}(@_); },
 );
@@ -1131,7 +1357,7 @@ sub get_plugins {
 #
 sub compare_item {
     my($mykey,$mymask,$mymin,$myitem, %request) = @_;
-    my($val,,$var,$cmp,$neg,$myresult,$postfwd_compare_proc);
+    my($val,$var,$cmp,$neg,$myresult,$postfwd_compare_proc);
     my($rcount) = 0;
     $mymin ||= 1;
 
@@ -1142,7 +1368,7 @@ sub compare_item {
     # now compare request to every single item
     ITEM: foreach (@{$mymask}) {
 	($cmp, $val) = split ";";
-	next ITEM unless ($cmp and $val and $mykey and $myitem);
+	next ITEM unless ($cmp and $val and $mykey);
 	mylogs $syslog_priority, "compare $mykey:  \"$myitem\"  \"$cmp\"  \"$val\"" if ($opt_verbose > 1);
 	$val = $neg if ($neg = deneg_item($val));
 	mylogs $syslog_priority, "deneg $mykey:  \"$myitem\"  \"$cmp\"  \"$val\"" if ($neg and ($opt_verbose > 1));
@@ -1169,18 +1395,14 @@ sub compare_item {
 #
 sub compare_rule {
     my($index,$date,%request) = @_;
+    my(@ruleitems) = keys %{$Rules[$index]};
     my($has_rbl) = exists($Rules[$index]{$COMP_RBL_KEY});
     my($has_rhl) = (
 	exists($Rules[$index]{$COMP_RHSBL_KEY}) or exists($Rules[$index]{$COMP_RHSBL_KEY_RCLIENT}) or
 	exists($Rules[$index]{$COMP_RHSBL_KEY_CLIENT}) or exists($Rules[$index]{$COMP_RHSBL_KEY_SENDER}) or
 	exists($Rules[$index]{$COMP_RHSBL_KEY_HELO})
     );
-    my($has_senderdns) = ( exists($Rules[$index]{$COMP_NS_NAME})
-			or exists($Rules[$index]{$COMP_MX_NAME})
-			or exists($Rules[$index]{$COMP_NS_ADDR})
-			or exists($Rules[$index]{$COMP_MX_ADDR})
-    );
-    my($hasdns) = ( not($opt_nodns) and ($has_senderdns or $has_rhl or $has_rbl) );
+    my($hasdns) = ( not($opt_nodns) and ($has_rhl or $has_rbl) );
     my($mykey,$myitem,$val,$cmp,$res,$myline,$timed) = undef;
     my(@myresult) = (0,0,0);
     my(@queries,@timedout) = ();
@@ -1188,19 +1410,51 @@ sub compare_rule {
     undef @DNSBL_Text;
 
     # prepare dns queries
-    my $ownres   = Net::DNS::Resolver->new;
-    my $ownsel   = IO::Select->new;
+    my $ownres   = Net::DNS::Resolver->new(
+	tcp_timeout => ($dns_timeout || $def_dns_timeout),
+	udp_timeout => ($dns_timeout || $def_dns_timeout),
+	persistent_tcp => 0, persistent_udp => 0,
+	retrans => 0, retry => 1, dnsrch => 0, defnames => 0,
+    );
+    my $ownsel   = IO::Select->new();
     my %ownsock  = ();
     my @ownready = ();
     my $bgsock = undef;
 
-    mylogs $syslog_priority, "rule: $index, id: $Rules[$index]{$COMP_ID}" if ($opt_verbose > 1);
+    mylogs $syslog_priority, "[RULES] rule: $index, id: $Rules[$index]{$COMP_ID}, items: '".((@ruleitems) ? join ';', @ruleitems: '')."'" if ($opt_verbose > 1);
+
+    # COMPARE-ITEMS
+    # check all non-dns items
+    ITEM: for $mykey ( keys %{$Rules[$index]} ) {
+	# always true
+	if ( (($mykey eq $COMP_ID) or ($mykey eq $COMP_ACTION)) ) {
+		$myresult[0]++;
+		next ITEM;
+	};
+	next ITEM if ( (($mykey eq $COMP_RBL_CNT) or ($mykey eq $COMP_RHSBL_CNT)) );
+	next ITEM if ( (($mykey eq $COMP_RBL_KEY) or ($mykey eq $COMP_RHSBL_KEY)) );
+	next ITEM if ( ($mykey eq $COMP_RHSBL_KEY_RCLIENT) or ($mykey eq $COMP_RHSBL_KEY_CLIENT) or ($mykey eq $COMP_RHSBL_KEY_SENDER) or ($mykey eq $COMP_RHSBL_KEY_HELO) );
+
+	# integration at this point enables redefining scores within ruleset
+	if ($mykey eq $COMP_SCORES) {
+		modify_score ($Rules[$index]{$mykey},$Rules[$index]{$COMP_ACTION});
+		$myresult[0] = 0;
+	} else {
+		$val = ( $mykey =~ /^$COMP_DATECALC$/ )
+			# prepare date check
+			? $date
+			# default: compare against request attribute
+			: $request{$mykey};
+		$myresult[0] = ($res = compare_item($mykey, $Rules[$index]{$mykey}, $num, ($val || ''), %request)) ? ($myresult[0] + $res) : 0;
+	};
+	last ITEM unless ($myresult[0] > 0);
+    };
 
     # DNSQUERY-SECTION
     # fire add()s with callback to result cache,
     # if they are not contained already,
     # and $opt_nodns is not set
-    if ($hasdns) {
+    if ($hasdns and $myresult[0]) {
 
 	map { $timed .= (($timed) ? ", $_" : $_) if $Timeouts{$_} > $MAX_DNSBL_TIMEOUTS } (keys %Timeouts);
 	mylogs "notice", "[DNSQUERY] skipping rbls: $timed - too much timeouts" if $timed;
@@ -1229,55 +1483,28 @@ sub compare_rule {
 			$ownsel->add($bgsock);
 			$ownsock{$bgsock} = 'A:'.$query;
 			# send TXT query
-			$bgsock = $ownres->bgsend($query, 'TXT');
-			$ownsel->add($bgsock);
-			$ownsock{$bgsock} = 'TXT:'.$query;
+			if ($dns_async_txt) {
+				$bgsock = $ownres->bgsend($query, 'TXT');
+				$ownsel->add($bgsock);
+				$ownsock{$bgsock} = 'TXT:'.$query;
+			};
 		};
 		mylogs $syslog_priority, "[SENDDNS] rule: $index, id: $Rules[$index]{$COMP_ID}, lookups: ".($#queries + 1)
 			if ($opt_verbose > 1);
 	};
-    };
 
-    # COMPARE-ITEMS
-    # check all non-dns items
-    ITEM: for $mykey ( keys %{$Rules[$index]} ) {
-	# always true
-	if ( (($mykey eq $COMP_ID) or ($mykey eq $COMP_ACTION)) ) {
-		$myresult[0]++;
-		next ITEM;
-	};
-	next ITEM if ( (($mykey eq $COMP_RBL_CNT) or ($mykey eq $COMP_RHSBL_CNT)) );
-	next ITEM if ( (($mykey eq $COMP_RBL_KEY) or ($mykey eq $COMP_RHSBL_KEY)) );
-	next ITEM if ( ($mykey eq $COMP_RHSBL_KEY_RCLIENT) or ($mykey eq $COMP_RHSBL_KEY_CLIENT) or ($mykey eq $COMP_RHSBL_KEY_SENDER) or ($mykey eq $COMP_RHSBL_KEY_HELO) );
-
-	# integration at this point enables redefining scores within ruleset
-	if ($mykey eq $COMP_SCORES) {
-		modify_score ($Rules[$index]{$mykey},$Rules[$index]{$COMP_ACTION});
-		$myresult[0] = 0;
-	} else {
-		$val = ( $mykey =~ /^$COMP_DATECALC$/ )
-			# prepare date check
-			? $date
-			# default: compare against request attribute
-			: $request{$mykey};
-		$myresult[0] = ($res = compare_item($mykey, $Rules[$index]{$mykey}, $num, $val, %request)) ? ($myresult[0] + $res) : 0;
-	};
-	last ITEM unless ($myresult[0] > 0);
-    };
-
-    # DNSRESULT-SECTION
-    # if all other items matched, run await()
-    # and check the results unless $opt_nodns
-    if ($hasdns) {
-	my($ownstart) = time();
+	# DNSRESULT-SECTION
+	# if all other items matched, run await()
+	# and check the results unless $opt_nodns
+	my($ownstart) = time(); @queries = ();
 	my($timout) = $dns_timeout || $def_dns_timeout;
 	while ((scalar keys %ownsock) and (@ownready = $ownsel->can_read($timout))) {
 		foreach my $sock (@ownready) {
 			if (defined $ownsock{$sock}) {
-				mylogs ('notice', "[DNSBL] ANSWER FROM ".$ownsock{$sock})
+				mylogs ('notice', "[DNSBL] answer for ".$ownsock{$sock})
 					if ($opt_verbose > 1);
 				my $packet = $ownres->bgread($sock);
-				rbl_read_dns ($packet);
+				push @queries, (split ':', $ownsock{$sock})[1] if rbl_read_dns ($packet);
 				delete $ownsock{$sock};
 			} else {
 				$ownsel->remove($sock);
@@ -1297,6 +1524,33 @@ sub compare_rule {
 			: 1
 			if ( $MAX_DNSBL_TIMEOUTS > 0 );
 		mylogs ('notice', "[DNSBL] warning: timeout (".$Timeouts{$DNS_Cache{$_}{name}}."/".$MAX_DNSBL_TIMEOUTS.") for ".$DNS_Cache{$_}{name}." after ".(time() - $ownstart)." seconds");
+	};
+
+	# perform outstanding TXT queries unless --dns_async_txt is set
+	if (not($dns_async_txt) and @queries) {
+		@queries = uniq(@queries);
+		mylogs $syslog_priority, "[DNSBL] sending TXT queries for ".(join ',', @queries) if ($opt_verbose > 1);
+		foreach my $query (@queries) {
+			mylogs $syslog_priority, "[SENDDNS] sending TXT query \'$query\'" if ($opt_verbose  > 1);
+			# send TXT query
+			$bgsock = $ownres->bgsend($query, 'TXT');
+			$ownsel->add($bgsock);
+			$ownsock{$bgsock} = 'TXT:'.$query;
+		};
+		while ((scalar keys %ownsock) and (@ownready = $ownsel->can_read($timout))) {
+			foreach my $sock (@ownready) {
+				if (defined $ownsock{$sock}) {
+					mylogs ('notice', "[DNSBL] answer for ".$ownsock{$sock})
+						if ($opt_verbose > 1);
+					my $packet = $ownres->bgread($sock);
+					rbl_read_dns ($packet);
+					delete $ownsock{$sock};
+				} else {
+					$ownsel->remove($sock);
+					$sock = undef;
+				};
+			};
+		};
 	};
 
 	# compare dns results
@@ -1425,6 +1679,9 @@ sub smtpd_access_policy {
     my($matched,$rblcnt,$rhlcnt,$t1,$t2,$t3,$stop)      = 0;
     my($mykey,$cacheid,$myline,$checkreq,$var,$ratehit) = "";
 
+    # save original request
+    $request{orig} = hash_to_str (%request);
+
     # replace empty sender with <>
     $request{sender} = '<>' unless ($request{sender});
 
@@ -1465,10 +1722,10 @@ sub smtpd_access_policy {
     # increase rate limits
     RATES: foreach $checkreq (keys %request) {
 	next RATES unless ( $request{$checkreq} and (defined $Rates{$request{$checkreq}}) );
-	if ( ($now - $Rates{$request{$checkreq}}{time}) > $Rates{$request{$checkreq}}{ttl} ) {
+	if ( ($now - $Rates{$request{$checkreq}}{"time"}) > $Rates{$request{$checkreq}}{ttl} ) {
 		# renew rate
 		$Rates{$request{$checkreq}}{count} = ( ($Rates{$request{$checkreq}}{type} eq 'size') ? $request{size} : 1 );
-		$Rates{$request{$checkreq}}{time} = $now;
+		$Rates{$request{$checkreq}}{"time"} = $now;
 		mylogs $syslog_priority, "[RATE] renewing rate object ".$request{$checkreq}
 			." [type: ".$Rates{$request{$checkreq}}{type}
 			.", max: ".$Rates{$request{$checkreq}}{maxcount}
@@ -1497,7 +1754,7 @@ sub smtpd_access_policy {
 	} else {
 		REQITEM: foreach $checkreq (sort keys %request) {
 			next REQITEM unless $request{$checkreq};
-			next REQITEM if ( ($checkreq eq "instance") or ($checkreq eq "queue_id") );
+			next REQITEM if ( ($checkreq eq "instance") or ($checkreq eq "queue_id") or ($checkreq eq "orig") );
 			next REQITEM if ( $opt_cache_no_size and ($checkreq eq "size") );
 			next REQITEM if ( $opt_cache_no_sender and ($checkreq eq "sender") );
 			if ( $opt_cache_rdomain_only and ($checkreq eq "recipient") ) {
@@ -1542,12 +1799,13 @@ sub smtpd_access_policy {
 		. ", action=".$myaction." (item: ".$request{$ratehit}
 		. ", type: ".$Rates{$request{$ratehit}}{type}
 		. ", count: ".$Rates{$request{$ratehit}}{count}."/".$Rates{$request{$ratehit}}{maxcount}
-		. ", time: ".($now - $Rates{$request{$ratehit}}{time})."/".$Rates{$request{$ratehit}}{ttl}."s)";
+		. ", time: ".($now - $Rates{$request{$ratehit}}{"time"})."/".$Rates{$request{$ratehit}}{ttl}."s)"
+		unless $opt_norulelog;
 
     # check cache
     } elsif ( ($REQUEST_MAX_CACHE > 0)
 
-	and ((exists($Request_Cache{$cacheid}{$COMP_ACTION})) and (($now - $Request_Cache{$cacheid}{time}) <= $REQUEST_MAX_CACHE)) ) {
+	and ((exists($Request_Cache{$cacheid}{$COMP_ACTION})) and (($now - $Request_Cache{$cacheid}{"time"}) <= $REQUEST_MAX_CACHE)) ) {
 	$Counter_Hits++;
 	$myaction = $Request_Cache{$cacheid}{$COMP_ACTION};
 	if ( $Request_Cache{$cacheid}{hit} ) {
@@ -1563,7 +1821,8 @@ sub smtpd_access_policy {
 			. ", state=".$request{protocol_state}
 			. ", delay=".(time - $now)."s"
 			. ", hits=".$Request_Cache{$cacheid}{hits}
-			. ", action=".$Request_Cache{$cacheid}{$COMP_ACTION};
+			. ", action=".$Request_Cache{$cacheid}{$COMP_ACTION}
+			unless $opt_norulelog;
 	};
 
     # check rules
@@ -1640,7 +1899,7 @@ sub smtpd_access_policy {
 				} else { $stop = 1; };
 				if ($stop) {
 					$myline .= ", delay=".(time - $now)."s, hits=".$request{$COMP_HITS}.", action=".$myaction;
-    					mylogs $syslog_priority, "[RULES] ".$myline;
+    					mylogs $syslog_priority, "[RULES] ".$myline unless $opt_norulelog;
 					last RULE;
 				};
 			} else { undef $myline; };
@@ -1648,10 +1907,10 @@ sub smtpd_access_policy {
 	};
 	# update cache
 	if ( $REQUEST_MAX_CACHE > 0 ) {
-		$Request_Cache{$cacheid}{time}	    = $now;
+		$Request_Cache{$cacheid}{"time"}	    = $now;
 		$Request_Cache{$cacheid}{$COMP_ACTION}	    = $myaction;
 		$Request_Cache{$cacheid}{hit}	    	    = $matched;
-		$Request_Cache{$cacheid}{hits}	    = $request{$COMP_HITS};
+		$Request_Cache{$cacheid}{hits}		    = $request{$COMP_HITS};
 		$Request_Cache{$cacheid}{$COMP_ID} 	    = $Rules[$index]{$COMP_ID} if ($matched > 0);
 	};
     };
@@ -1659,27 +1918,30 @@ sub smtpd_access_policy {
     return $myaction;
 };
 
-sub process_input {
-}
-
 
 ####  MAIN  ####
 
 # parse command-line
-GetOptions (	't|test'		 => \$opt_test,
+GetOptions (	"term|kill|stop|k"	 => \$opt_kill,
+		"hup|reload"		 => \$opt_hup,
+		't|test'		 => \$opt_test,
 		'v|verbose'		 => sub { $opt_verbose++ },
 		'l|logname=s'		 => \$syslog_name,
 		'facility=s'		 => \$syslog_facility,
 		'loglen=i'		 => \$syslog_maxlen,
 		'n|nodns'		 => \$opt_nodns,
 		'nodnslog'		 => \$opt_nodnslog,
+		'no-dnslog'		 => \$opt_nodnslog,
+		'norulelog'		 => \$opt_norulelog,
+		'no-rulelog'		 => \$opt_norulelog,
 		'shortlog'		 => \$opt_shortlog, # for compatibility
-		'd|daemon'		 => \$opt_daemon,
+		'd|daemon!'		 => \$opt_daemon,
 		'I|instantcfg'		 => \$opt_instantconfig,
 		'P|perfmon'		 => \$opt_perfmon,
 		'L|stdoutlog'		 => \$opt_stdoutlog,
 		'i|interface=s'		 => \$net_interface,
 		'p|port=s'		 => \$net_port,
+		'proto=s'		 => \$net_proto,
 		'R|chroot=s'		 => \$net_chroot,
 		'pid|pidfile=s'		 => \$net_pid,
 		'u|user=s'		 => \$net_user,
@@ -1689,6 +1951,9 @@ GetOptions (	't|test'		 => \$opt_test,
 		'dns_timeout=i'		 => \$dns_timeout,
 		'dns_timeout_max=i'	 => \$MAX_DNSBL_TIMEOUTS,
 		'dns_timeout_interval=i' => \$MAX_DNSBL_INTERVAL,
+		'dns_async_txt'		 => \$dns_async_txt,
+		'dns_max_ns_lookups=i'	 => \$opt_max_ns_lookups,
+		'dns_max_mx_lookups=i'	 => \$opt_max_mx_lookups,
 		'c|cache=i'		 => \$REQUEST_MAX_CACHE,
 		'cacheid=s'		 => sub { @CacheID = ( @CacheID, (split /[,\s]+/, $_[1]) ) },
 		'cache-rdomain-only'	 => \$opt_cache_rdomain_only,
@@ -1700,12 +1965,15 @@ GetOptions (	't|test'		 => \$opt_test,
 		'cleanup-rbls=i'	 => \$CLEANUP_RBL_CACHE,
 		'cleanup-rates=i'	 => \$CLEANUP_RATE_CACHE,
 		'S|summary:i'		 => \$opt_summary,
+		'norulestats'		 => \$opt_no_rulestats,
 		'no-rulestats'		 => \$opt_no_rulestats,
+		'noidlestats'		 => \$opt_noidlestats,
+		'no-idlestats'		 => \$opt_noidlestats,
 		's|scores=s'		 => \%opt_scores,
 		'f|file=s'		 => sub{ my($opt,$value) = @_; push (@Configs, $opt.'::'.$value) },
 		'r|rule=s'		 => sub{ my($opt,$value) = @_; push (@Configs, $opt.'::'.$value) },
 		'plugins=s'	 	=> \@Plugins,
-		'V|version'		 => sub{ print "$NAME $VERSION\n"; exit 1; },
+		'V|version'		 => sub{ print "$NAME $VERSION (Net::DNS ".(Net::DNS->VERSION || '<undef>').", Net::Server ".(Net::Server->VERSION || '<undef>').", Perl ".$]." on ".$^O.")\n"; exit 1; },
 		'C|showconfig'		 => \$opt_showconfig,
 		'h|H|?|help|Help|HELP'	 => sub{ pod2usage (-msg => "\nPlease see \"".$NAME." -m\" for detailed instructions.\n", -verbose => 1); },
 		'm|M|manual'		 => sub{ # contructing command string (de-tainting $0)
@@ -1715,6 +1983,16 @@ GetOptions (	't|test'		 => \$opt_test,
 ) or pod2usage (-msg => "\nPlease see \"".$NAME." -m\" for detailed instructions.\n", -verbose => 1);
 
 $opt_verbose = 0 unless $opt_verbose;
+
+# terminate at -k or --kill
+if ($opt_kill) {
+        kill "TERM", get_master_pid();
+        exit (0);
+# reload at --reload
+} elsif ($opt_hup) {
+        kill "HUP", get_master_pid();
+        exit (0);
+};
 
 # init syslog
 setlogsock $syslog_socktype;
@@ -1755,6 +2033,7 @@ get_plugins (@Plugins) if @Plugins;
 # de-taint arguments
 $net_interface	||= $def_net_interface;
 $net_port	||= $def_net_port;
+$net_proto	||= $def_net_proto;
 $net_user 	||= $def_net_user;
 $net_group 	||= $def_net_group;
 $net_chroot 	||= $def_net_chroot;
@@ -1764,7 +2043,8 @@ $dns_retries	||= $def_dns_retries;
 $dns_timeout	||= $def_dns_timeout;
 $syslog_name	||= $NAME;
 $net_interface	= ( $net_interface	=~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/ )	? $1 : $def_net_interface;
-$net_port 	= ( $net_port		=~ /^(\d+)$/ ) 					? $1 : $def_net_port;
+$net_port 	= ( $net_port		=~ /^(\d+|[-\|\@\/\w. ]+)$/ )			? $1 : $def_net_port;
+$net_proto 	= ( $net_proto		=~ /^(tcp|unix)$/i )				? $1 : $def_net_proto;
 $net_user 	= ( $net_user		=~ /^([\w]+)$/ ) 				? $1 : $def_net_user;
 $net_group 	= ( $net_group		=~ /^([\w]+)$/ ) 				? $1 : $def_net_group;
 $net_chroot 	= ( $net_chroot		=~ /^(.+)$/ ) 					? $1 : $def_net_chroot;
@@ -1790,9 +2070,10 @@ if ($opt_daemon) {
 	my $server = bless {
 		server => {
 			commandline      => [$0, @CommandArgs],
-			port             => $net_port,
-			host             => $net_interface,
-			proto            => $def_net_proto,
+			# Net::Server dies when a unix domain socket without dot (".") is used
+			port             => (($net_proto eq 'unix') and not($net_port =~ /\|unix$/)) ? "$net_port|unix" : $net_port,
+			host             => ($net_proto eq 'unix') ? '' : $net_interface,
+			proto            => $net_proto,
 			user             => $net_user,
 			group            => $net_group,
 			chroot           => $net_chroot ? $net_chroot : undef,
@@ -1880,8 +2161,8 @@ if ($opt_daemon) {
 					$Counter_Requests++; $Counter_Interval++;
 				};
 			} else {
-				chop;
-				warn "error: ignoring garbage from $client \"".$request."\"";
+				chop $request if $request;
+				warn "error: ignoring garbage".( ($opt_verbose) ? " from $client" : "")." \"".$request."\"";
 			};
 		};
 	};
@@ -1905,8 +2186,8 @@ if ($opt_daemon) {
 					mylogs $syslog_priority, "Attribute: $_=$myattr{$_}";
 				};
 			};
-			unless ($myattr{request} eq "smtpd_access_policy") {
-				warn "ignoring unrecognized request type: '$myattr{request}'"
+			unless ( (defined $myattr{request}) and ($myattr{request} eq "smtpd_access_policy") ) {
+				warn "ignoring unrecognized request type: '".($myattr{request} || '')."'";
 			} else {
 				my($action) = substr ( smtpd_access_policy(%myattr), 0, $reply_maxlen ) if $reply_maxlen;
 				mylogs $syslog_priority, "Action: $action" if $opt_verbose;
@@ -1914,7 +2195,7 @@ if ($opt_daemon) {
 				$Counter_Requests++; $Counter_Interval++;
 			};
 		} else {
-			chop;
+			chop $request if $request;
 			warn "error: ignoring garbage \"".$request."\"";
 		};
 	};
@@ -1925,7 +2206,6 @@ if ($opt_daemon) {
 
 die "should never see me...";
 ## EOF
-
 
 __END__
 
@@ -1948,6 +2228,7 @@ postfwd [OPTIONS] [SOURCE1, SOURCE2, ...]
 	-d, --daemon                run postfwd as daemon
 	-i, --interface <dev>       listen on interface <dev>
 	-p, --port <port>           listen on port <port>
+            --proto <proto>         socket type (tcp or unix)
 	-u, --user <name>           set uid to user <name>
 	-g, --group <name>          set gid to group <name>
 	-R, --chroot <path>         chroot the daemon to <path>
@@ -1971,12 +2252,17 @@ postfwd [OPTIONS] [SOURCE1, SOURCE2, ...]
 	-t, --test                  testing, always returns "dunno"
 	-v, --verbose               verbose logging, use twice (-vv) to increase level
 	-S, --summary <int>         show some usage statistics every <int> seconds
-	    --no-rulestats          disables per rule statistics
+	    --norulelog             disbles rule logging
+	    --norulestats           disables per rule statistics
+	    --noidlestats           disables statistics when idle
 	-n, --nodns                 disable dns
 	    --nodnslog              disable dns logging
+	    --dns_async_txt         perform dnsbl A and TXT lookups simultaneously
 	    --dns_timeout           timeout in seconds for asynchonous dns queries
 	    --dns_timeout_max       maximum of dns timeouts until a dnsbl will be deactivated
 	    --dns_timeout_interval  interval in seconds for dns timeout maximum counter
+	    --dns_max_ns_lookups    max names to look up with sender_ns_addrs
+	    --dns_max_mx_lookups    max names to look up with sender_mx_addrs
 	-I, --instantcfg            re-reads rulefiles for every new request
 
 	Informational (use only at command-line!):
@@ -2042,11 +2328,15 @@ is not important. So the following would lead to the same result as the previous
 The way how request items are compared to the ruleset can be influenced in the following way:
 
 	====================================================================
-	 ITEM==VALUE                  true if ITEM equals VALUE
-	 ITEM>=VALUE                  true if ITEM >= VALUE
-	 ITEM<=VALUE                  true if ITEM <= VALUE
-	 ITEM~=VALUE                  true if ITEM ~= /^VALUE$/i
-	 ITEM=VALUE                   default behaviour (see ITEMS section)
+	 ITEM == VALUE                true if ITEM equals VALUE
+	 ITEM => VALUE                true if ITEM >= VALUE
+	 ITEM =< VALUE                true if ITEM <= VALUE
+	 ITEM =~ VALUE                true if ITEM ~= /^VALUE$/i
+	 ITEM != VALUE                false if ITEM equals VALUE
+	 ITEM !> VALUE                false if ITEM >= VALUE
+	 ITEM !< VALUE                false if ITEM <= VALUE
+	 ITEM !~ VALUE                false if ITEM ~= /^VALUE$/i
+	 ITEM =  VALUE                default behaviour (see ITEMS section)
 	====================================================================
 
 To identify single rules in your log files, you may add an unique identifier for each of it:
@@ -2110,6 +2400,15 @@ Rules can span multiple lines by adding a trailing backslash "\" character:
 	recipient_localpart,	- the local-/domainpart of the recipient address
 	recipient_domain
 
+	helo_address		- postfwd tries to look up the helo_name. use
+				  helo_address=!!(0.0.0.0/0) to check for unknown.
+
+	sender_ns_names,	- postfwd tries to look up the names/ip addresses
+	sender_ns_addrs		  of the nameservers for the sender domain part.
+
+	sender_mx_names,	- postfwd tries to look up the names/ip addresses
+	sender_mx_addrs		  of the mx records for the sender domain part.
+
 	version			- postfwd version, contains "postfwd n.nn"
 				  this enables version based checks in your rulesets
 				  (e.g. for migration). works with old versions too,
@@ -2134,6 +2433,11 @@ for details:
 	score=5.0				mask = maximum floating point value
 	rbl=zen.spamhaus.org			mask = <name>/<reply>/<maxcache>[,...]
 	rblcount=2				mask = numeric, will match if rbl hits >= 2
+	helo_address=<a.b.c.d/nn>		mask = CIDR[,CIDR,...]
+	sender_ns_names=some.domain.tld		mask = PCRE
+	sender_mx_names=some.domain.tld		mask = PCRE
+	sender_ns_addrs=<a.b.c.d/nn>		mask = CIDR[,CIDR,...]
+	sender_mx_addrs=<a.b.c.d/nn>		mask = CIDR[,CIDR,...]
 	# ------------------------------
 	# Postfix version 2.1 and later:
 	# ------------------------------
@@ -2271,6 +2575,16 @@ postfwd actions control the behaviour of the program. Currently you can specify 
 	   # size limit 1.5mb per hour per client
 	   id=SIZE01 ;  state==END_OF_DATA ;  client_address==!!(10.1.1.1); \
 	      action==size($$client_address/1572864/3600/450 4.7.1 sorry, max 1.5mb per hour)
+
+	ask (<addr>:<port>[:<ignore>])
+	allows to delegate the policy decision to another policy service (e.g. postgrey). the first
+	and the second argument (address and port) are mandatory. a third optional argument may be
+	specified to tell postfwd to ignore certain answers and go on parsing the ruleset:
+	   # example1: query postgrey and return it's answer to postfix
+	   id=GREY; client_address==10.1.1.1; ask(127.0.0.1:10031)
+	   # example2: query postgrey but ignore it's answer, if it matches 'DUNNO'
+	   # and continue parsing postfwd's ruleset
+	   id=GREY; client_address==10.1.1.1; ask(127.0.0.1:10031:^dunno$)
 
 	wait (<delay>)
 	pauses the program execution for <delay> seconds. use this for
@@ -2414,6 +2728,11 @@ The following arguments will control it's behaviour in this case.
 	-p, --port <port>
 	postfwd listens on the specified port (default tcp/10040).
 
+	--proto <type>
+	The protocol type for postfwd's socket. Currently you may use 'tcp' or 'unix' here.
+	To use postfwd with a unix domain socket, run it as follows:
+	    postfwd --proto=unix --port=/somewhere/postfwd.socket
+
 	-u, --user <name>
 	Changes real and effective user to <name>.
 
@@ -2538,6 +2857,17 @@ These parameters influence the way postfwd is working. Any of them can be combin
 	--dns_timeout_interval    (default=1200)
 	The dnsbl timeout counter will be cleaned after this interval in seconds. Use this
 	in conjunction with the --dns_timeout_max parameter.
+
+	--dns_async_txt
+	Perform dnsbl A and TXT lookups simultaneously (otherwise only for listings with at
+	least one A record). This needs more network bandwidth due to increased queries but
+	might increase throughput because the lookups can be parallelized.
+
+	--dns_max_ns_lookups     (default=0)
+	maximum ns names to lookup up with sender_ns_addrs item. use 0 for no maximum.
+
+	--dns_max_mx_lookups     (default=0)
+	maximum mx names to lookup up with sender_mx_addrs item. use 0 for no maximum.
 
 	-I, --instantcfg
 	The config files, specified by -f will be re-read for every request
@@ -2818,7 +3148,7 @@ The parser evaluates the given action and continues with the next rule (except f
 for more information). Nothing will be sent to postfix.
 
 If no rule has matched and the end of the ruleset is reached postfwd will return dunno without logging anything unless in verbose mode. You may
-simply place a last `catch-all´ rule to change that behaviour:
+simply place a last `catch-allÂ´ rule to change that behaviour:
 
 	... <your rules> ...
 	id=DEFAULT ;  action=dunno
