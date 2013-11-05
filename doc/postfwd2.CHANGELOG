@@ -1,3 +1,78 @@
+postfwd2 1.32
+=============
+- feature: new option --save_rates=<file> allows to load and save
+	   rate limit counters to disk on program start and termination.
+	   this allows rate limit persistence during restarts and reboots
+	   (requires perl module 'Storable')
+- feature: the --debugitem="sender=example\.org$" option
+           allows verbose logging for particular requests
+- feature: the debug() action allows verbose logging for certain
+           rules:
+    ------------------------------------------------------------
+     id=R01
+        client_address=1.1.1.1
+        action=debug(on)
+     id=R02
+     ...
+     id=R42
+        action=debug(off)
+    ------------------------------------------------------------
+- feature: nested commands are possible now, e.g.:
+    ------------------------------------------------------------
+     # throttle
+     action=rate(client_address/10/60/wait(3))
+    ------------------------------------------------------------
+- feature: new mail(server/helo/from/to/subject/body) action.
+	   Please take a look at the manual, especially about
+	   it's limitations, before using it!
+    ------------------------------------------------------------
+     # alert
+     action=size(recipient_domain/100000000/86400/mail(mailhost/helo/from/to/subject/text))
+    ------------------------------------------------------------
+- feature: --chroot option works now (patch by Lukas Wunner).
+	   Look for his notes at http://postfwd.org/postfwd2-chroot.html
+	   on how to set up the required chroot environment.
+
+postfwd2 1.31
+=============
+- feature: single cache items can be wiped using --delcache <item>
+	   or --delrate <item> options. use --dumpcache to identify
+- feature: sasl_username is logged if available
+	   (thanks to Bernhard Schmidt)
+- code:    rate limit action is executed, if the first request exceeds the limit
+- code:    exceeded ratecounters will not be kept permanently anymore. this
+	   allows further requests to pass, if they are below the limit
+- code:	   rate limits are evaluated at ruleset stage now, which leads to
+	   much more comprehensible behaviour. due to this change the request
+	   cache is now disabled, if rate limits are used. use the
+	   --fast_limit_evaluation option to return to the former mode.
+
+postfwd2 1.30
+=============
+- feature: new parser enhancement allows to omit the trailing "\" for multi-line rules,
+	   if the following lines are prefixed by whitespace characters:
+		--------------------------------------
+		 id=RCPTCOUNT
+		    protocol_state  == END-OF-MESSAGE
+		    client_address  != 10.1.1.0/24
+		    recipient_count >= 100
+		    action=REJECT too many recipients
+		--------------------------------------
+- feature: new plugin interface (BETA)
+- feature: Time::HiRes is used if available
+- feature: multiple rate limits for the same items are supported now
+- feature: new $$ratecount variable for rate() actions
+- feature: new option --keep_rates
+- code:    new --debug class 'cleanup'
+- docs:    documentation updates
+
+postfwd2 1.22
+=============
+- general: adapted postfwd1 versioning scheme
+- feature: queueid is logged when available
+- bugfix:  rate limits did not work correctly (thanks to Yves Blusseau)
+- docs:    documentation updates and fixes (thanks to Vincent Lefevre)
+
 postfwd2 1.00
 =============
 - code:    changed the default umask for the server socket to 0111
