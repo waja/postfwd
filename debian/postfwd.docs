@@ -2,5 +2,3 @@ doc/postfwd2.CHANGELOG
 doc/*.html
 doc/*.txt
 tools/*.pl
-tools/*.sample
-plugins/*.sample
