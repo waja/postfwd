@@ -1,0 +1,172 @@
+From: Jan Wagner <waja@cyconet.org>
+Subject: Fixing cosmetical issues
+diff --git a/man/man8/postfwd.8 b/man/man8/postfwd.8
+index 3e4354b..49deff1 100644
+--- a/man/man8/postfwd.8
++++ b/man/man8/postfwd.8
+@@ -335,7 +335,7 @@ postfwd versions prior to 1.30 require trailing ';' and '\e'\-characters:
+ \&                                  the specified action will be returned to postfix
+ \&                                  scores are set global until redefined!
+ \&
+-\&        request_score           \- this value allows to access a request\*(Aqs score. it
++\&        request_score           \- this value allows one to access a request\*(Aqs score. it
+ \&                                  may be used as variable ($$request_score).
+ \&
+ \&        rbl, rhsbl,             \- query the specified RBLs/RHSBLs, possible values are:
+@@ -466,7 +466,7 @@ The following items currently have to be unique:
+ \&        id, minimum and maximum values, rblcount and rhsblcount
+ .Ve
+ .PP
+-Any item can be negated by preceeding '!!' to it, e.g.:
++Any item can be negated by preceding '!!' to it, e.g.:
+ .PP
+ .Vb 1
+ \&        id=HOST001 ;  hostname == !!secure.trust.local ;  action=REJECT only secure.trust.local please
+@@ -484,7 +484,7 @@ To avoid confusion with regexps or simply for better visibility you can use '!!(
+ \&        id=USER01 ;  sasl_username = !!( (bob|alice) )  ;  action=REJECT who is that?
+ .Ve
+ .PP
+-Request attributes can be compared by preceeding '$$' characters, e.g.:
++Request attributes can be compared by preceding '$$' characters, e.g.:
+ .PP
+ .Vb 3
+ \&        id=R\-003 ;  client_name = !! $$helo_name      ;  action=WARN helo does not match DNS
+@@ -637,7 +637,7 @@ with postfwd1 v1.15 and postfwd2 v0.18 and higher.
+ \&\fIGeneral\fR
+ .PP
+ Actions will be executed, when all rule items have matched a request (or at least one of any item list). You can refer to
+-request attributes by preceeding $$ characters, like:
++request attributes by preceding $$ characters, like:
+ .PP
+ .Vb 3
+ \&        id=R\-003; client_name = !!$$helo_name; action=WARN helo \*(Aq$$helo_name\*(Aq does not match DNS \*(Aq$$client_name\*(Aq
+@@ -730,7 +730,7 @@ postfwd actions control the behaviour of the program. Currently you can specify
+ \&        means that requests from bob@example.local and BoB@example.local will be treated differently
+ \&
+ \&        ask (<addr>:<port>[:<ignore>])
+-\&        allows to delegate the policy decision to another policy service (e.g. postgrey). the first
++\&        allows one to delegate the policy decision to another policy service (e.g. postgrey). the first
+ \&        and the second argument (address and port) are mandatory. a third optional argument may be
+ \&        specified to tell postfwd to ignore certain answers and go on parsing the ruleset:
+ \&           # example1: query postgrey and return it\*(Aqs answer to postfix
+@@ -832,7 +832,7 @@ carefully, because errors may cause postfwd to break! It is also
+ allowed to override attributes or built-in functions, but be sure that you know
+ what you do because some of them are used internally.
+ .PP
+-Please keep security in mind, when you access sensible ressources and never, ever
++Please keep security in mind, when you access sensible resources and never, ever
+ run postfwd as privileged user! Also never trust your input (especially hostnames,
+ and e\-mail addresses).
+ .PP
+@@ -866,7 +866,7 @@ the policy delegation request and therefore may be used in postfwd's ruleset.
+ \&
+ \&                # EXAMPLES \- integrated in postfwd. no need to activate them here.
+ \&                
+-\&                        # allows to check postfwd version in ruleset
++\&                        # allows one to check postfwd version in ruleset
+ \&                        "version" => sub {
+ \&                                my(%request) = @_;
+ \&                                my(%result) = (
+@@ -1505,7 +1505,7 @@ equals to
+ \&        id=R001; sender=bob@alice.local; client_address=192.168.1.1; action=dunno
+ .Ve
+ .PP
+-Lists will be evaluated in the specified order. This allows to place faster expressions at first:
++Lists will be evaluated in the specified order. This allows one to place faster expressions at first:
+ .PP
+ .Vb 1
+ \&        postfwd \-vv \-L \-r "id=RBL001; rbl=localrbl.local zen.spamhaus.org; action=REJECT" /some/where/request.sample
+diff --git a/man/man8/postfwd2.8 b/man/man8/postfwd2.8
+index 11319fd..fdb3a6f 100644
+--- a/man/man8/postfwd2.8
++++ b/man/man8/postfwd2.8
+@@ -193,7 +193,7 @@ postfwd2 \- postfix firewall daemon
+ \&        \-n, \-\-nodns                     skip any dns based test
+ \&            \-\-dns_timeout <i>           dns query timeout in seconds
+ \&            \-\-dns_timeout_max <i>       disable dnsbl after <i> timeouts
+-\&            \-\-dns_timeout_interval <i>  reenable dnsbl after <i> seconds
++\&            \-\-dns_timeout_interval <i>  re-enable dnsbl after <i> seconds
+ \&            \-\-cache\-rbl\-timeout <i>     default dns ttl if not specified in ruleset
+ \&            \-\-cache\-rbl\-default <s>     default dns pattern if not specified in ruleset
+ \&            \-\-cleanup\-rbls <i>          cleanup old dns cache items every <i> seconds
+@@ -364,7 +364,7 @@ postfwd versions prior to 1.30 require trailing ';' and '\e'\-characters:
+ \&                                  the specified action will be returned to postfix
+ \&                                  scores are set global until redefined!
+ \&
+-\&        request_score           \- this value allows to access a request\*(Aqs score. it
++\&        request_score           \- this value allows one to access a request\*(Aqs score. it
+ \&                                  may be used as variable ($$request_score).
+ \&
+ \&        rbl, rhsbl,             \- query the specified RBLs/RHSBLs, possible values are:
+@@ -495,7 +495,7 @@ The following items must be unique:
+ \&        id, minimum and maximum values, rblcount and rhsblcount
+ .Ve
+ .PP
+-Any item can be negated by preceeding '!!' to it, e.g.:
++Any item can be negated by preceding '!!' to it, e.g.:
+ .PP
+ .Vb 1
+ \&        id=HOST001 ;  hostname == !!secure.trust.local ;  action=REJECT only secure.trust.local please
+@@ -513,7 +513,7 @@ To avoid confusion with regexps or simply for better visibility you can use '!!(
+ \&        id=USER01 ;  sasl_username =~ !!( /^(bob|alice)$/ )  ;  action=REJECT who is that?
+ .Ve
+ .PP
+-Request attributes can be compared by preceeding '$$' characters, e.g.:
++Request attributes can be compared by preceding '$$' characters, e.g.:
+ .PP
+ .Vb 3
+ \&        id=R\-003 ;  client_name = !! $$helo_name      ;  action=WARN helo does not match DNS
+@@ -666,7 +666,7 @@ with postfwd1 v1.15 and postfwd2 v0.18 and higher.
+ \&\fIGeneral\fR
+ .PP
+ Actions will be executed, when all rule items have matched a request (or at least one of any item list). You can refer to
+-request attributes by preceeding $$ characters, like:
++request attributes by preceding $$ characters, like:
+ .PP
+ .Vb 3
+ \&        id=R\-003; client_name = !!$$helo_name; action=WARN helo \*(Aq$$helo_name\*(Aq does not match DNS \*(Aq$$client_name\*(Aq
+@@ -750,7 +750,7 @@ postfwd2 actions control the behaviour of the program. Currently you can specify
+ \&        means that requests from bob@example.local and BoB@example.local will be treated differently
+ \&
+ \&        ask (<addr>:<port>[:<ignore>])
+-\&        allows to delegate the policy decision to another policy service (e.g. postgrey). the first
++\&        allows one to delegate the policy decision to another policy service (e.g. postgrey). the first
+ \&        and the second argument (address and port) are mandatory. a third optional argument may be
+ \&        specified to tell postfwd2 to ignore certain answers and go on parsing the ruleset:
+ \&           # example1: query postgrey and return it\*(Aqs answer to postfix
+@@ -852,7 +852,7 @@ carefully, because errors may cause postfwd to break! It is also
+ allowed to override attributes or built-in functions, but be sure that you know
+ what you do because some of them are used internally.
+ .PP
+-Please keep security in mind, when you access sensible ressources and never, ever
++Please keep security in mind, when you access sensible resources and never, ever
+ run postfwd as privileged user! Also never trust your input (especially hostnames,
+ and e\-mail addresses).
+ .PP
+@@ -886,7 +886,7 @@ the policy delegation request and therefore may be used in postfwd's ruleset.
+ \&
+ \&                # EXAMPLES \- integrated in postfwd. no need to activate them here.
+ \&                
+-\&                        # allows to check postfwd version in ruleset
++\&                        # allows one to check postfwd version in ruleset
+ \&                        "version" => sub {
+ \&                                my(%request) = @_;
+ \&                                my(%result) = (
+@@ -1524,7 +1524,7 @@ equals to
+ \&        id=R001; sender=bob@alice.local; client_address=192.168.1.1; action=dunno
+ .Ve
+ .PP
+-Lists will be evaluated in the specified order. This allows to place faster expressions at first:
++Lists will be evaluated in the specified order. This allows one to place faster expressions at first:
+ .PP
+ .Vb 1
+ \&        postfwd2 \-\-nodaemon \-vv \-L \-r "id=RBL001; rbl=localrbl.local zen.spamhaus.org; action=REJECT" /some/where/request.sample
+@@ -1601,7 +1601,7 @@ To debug special steps of the parser the '\-\-debug' switch takes a list of debu
+ .PP
+ The common way to use postfwd2 is to start it as daemon, listening at a specified tcp port.
+ postfwd2 will spawn multiple child processes which communicate with a parent cache. This is
+-the prefered way to use postfwd2 in high volume environments. Start postfwd2 with the following parameters:
++the preferred way to use postfwd2 in high volume environments. Start postfwd2 with the following parameters:
+ .PP
+ .Vb 1
+ \&        postfwd2 \-d \-f /etc/postfwd.cf \-i 127.0.0.1 \-p 10045 \-u nobody \-g nobody \-S
