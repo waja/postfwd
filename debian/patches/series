@@ -1,1 +1,2 @@
 10_fix_wording_manpages.patch
+20_fix_postfwd1_default_umask.patch

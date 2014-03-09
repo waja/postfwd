@@ -1,0 +1,15 @@
+From: Jan Wagner <waja@cyconet.org>
+Subject: Fixing default umask of postfwd
+diff --git a/sbin/postfwd b/sbin/postfwd
+index e17a729..62f90bb 100755
+--- a/sbin/postfwd
++++ b/sbin/postfwd
+@@ -49,7 +49,7 @@ our($def_net_chroot)		= "";
+ our($def_net_interface)		= "127.0.0.1";
+ our($def_net_port)		= "10040";
+ our($def_net_proto)		= "tcp";
+-our($def_net_umask)		= "0111";
++our($def_net_umask)		= "0177";
+ our($def_net_user)		= "nobody";
+ our($def_net_group)		= "nobody";
+ our($def_dns_queuesize)		= "300";
