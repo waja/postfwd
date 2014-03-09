@@ -13,7 +13,7 @@ before_install:
 
 install:
     # install build dependencies
-    - sudo apt-get install -qq --no-install-recommends debhelper dpatch
+    - sudo apt-get install -qq --no-install-recommends debhelper
 
 script:
     # build the debian package
