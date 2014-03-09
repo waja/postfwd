@@ -1,9 +1,25 @@
-postfwd (1.35-2) UNRELEASED; urgency=low
+postfwd (1.35-2) unstable; urgency=low
 
   * Migrate over example installation to postfwd.examples
   * Add plugins/*.sample to examples
+  * [6f4f77b] Remove generated hapolicy manpage in clean target
+  * [05ca589] Updating standards version to 3.9.4, no changes needed
+  * [bb64a82] Source init functions in init script
+  * [5d8b250] Update Vcs-headers
+  * [0df5d0a] Updating standards version to 3.9.5, no changes needed
+  * [86f8f61] Add travis-ci config
+  * [010082b] Remove unneeded purge from travis config
+  * [7542e86] Reorder and comment .travis.yml
+  * [7025f4f] Add lintian checks after build
+  * [ddbfcc0] Update to recent copyright format
+  * [b9b503e] Move samples into /usr/share/doc/postfwd/examples
+  * [1e7c202] Add 10_fix_wording_manpages.patch to fix manpages
+  * [f7da50f] travis-ci: Remove dpatch from build-deps
+  * [dd5f01d] Add 20_fix_postfwd1_default_umask.patch to fix postfwd default
+    umask (Closes: #717607), thanks Jesse Norell
+  * [172a432] Fix bug report source format move
 
- -- Jan Wagner <waja@cyconet.org>  Wed, 22 May 2013 15:01:28 +0200
+ -- Jan Wagner <waja@cyconet.org>  Sun, 09 Mar 2014 23:43:28 +0100
 
 postfwd (1.35-1) unstable; urgency=low
 
