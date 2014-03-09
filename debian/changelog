@@ -37,7 +37,7 @@ postfwd (1.33-1) UNRELEASED; urgency=low
 
 postfwd (1.32-2) unstable; urgency=low
 
-  * Switch over to packaging format 3.0 (quilt) (Closes: #664409)
+  * Switch over to packaging format 3.0 (quilt) (Closes: #664368)
   * Updating standards version to 3.9.3, no changes needed
   * Remove build-dependency of dpatch
   * Use dh_prep instead of dh_clean -k
