@@ -1,3 +1,10 @@
+postfwd (1.35-3) unstable; urgency=medium
+
+  * [965e0d7] Remove shiped html files from binaries
+  * [17c1925] Bump Standards-Version to 3.9.6, no changes needed
+
+ -- Jan Wagner <waja@cyconet.org>  Mon, 13 Oct 2014 15:02:11 +0200
+
 postfwd (1.35-2) unstable; urgency=low
 
   * Migrate over example installation to postfwd.examples
