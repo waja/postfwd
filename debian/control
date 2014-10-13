@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 9), html2text
 Homepage: http://www.postfwd.org/
 Vcs-Browser: https://gitlab.uncompleted.org/debian/postfwd
 Vcs-Git: https://gitlab.uncompleted.org/debian/postfwd.git
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 
 Package: postfwd
 Architecture: all
