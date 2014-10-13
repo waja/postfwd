@@ -27,6 +27,8 @@ install: build
 	# install man page
 	mkdir -p debian/tmp/
 	cp man/man8/postfwd.8 debian/tmp/postfwd1.8
+	html2text doc/quick.html > debian/tmp/quick.txt
+	html2text doc/versions.html > debian/tmp/versions.txt
 	pod2man debian/hapolicy/usr/sbin/hapolicy man/man8/hapolicy.1
 
 # Build architecture-independent files here.
