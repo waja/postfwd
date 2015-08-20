@@ -1,5 +1,5 @@
-doc/postfwd2.CHANGELOG
-doc/postfwd-ARCH.png
-doc/*.txt
 debian/tmp/*.txt
+doc/*.txt
+doc/postfwd-ARCH.png
+doc/postfwd2.CHANGELOG
 tools/*.pl

@@ -1,4 +1,4 @@
-etc/postfwd.cf.sample
 debian/example-cfg*
+etc/postfwd.cf.sample
 plugins/*.sample
 tools/*.sample
