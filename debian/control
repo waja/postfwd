@@ -10,7 +10,11 @@ Standards-Version: 3.9.6
 
 Package: postfwd
 Architecture: all
-Depends: ${perl:Depends}, ${misc:Depends}, adduser, libnet-dns-perl, libnet-server-perl
+Depends: adduser,
+         libnet-dns-perl,
+         libnet-server-perl,
+         ${misc:Depends},
+         ${perl:Depends}
 Conflicts: postfwd2
 Description: Postfix policyd to combine complex restrictions in a ruleset
  Postfwd is written in perl to combine complex postfix restrictions in a
@@ -22,7 +26,7 @@ Description: Postfix policyd to combine complex restrictions in a ruleset
 
 Package: hapolicy
 Architecture: all
-Depends: ${perl:Depends}, ${misc:Depends}
+Depends: ${misc:Depends}, ${perl:Depends}
 Description: Balancing and fallback postfix policy delegation service
  Hapolicy enables high availability, weighted loadbalancing and a fallback
  action for postfix policy delegation services. Invoked via postfix spawn
