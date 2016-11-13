@@ -13,6 +13,7 @@ Architecture: all
 Depends: adduser,
          libnet-dns-perl,
          libnet-server-perl,
+         lsb-base,
          ${misc:Depends},
          ${perl:Depends}
 Conflicts: postfwd2
