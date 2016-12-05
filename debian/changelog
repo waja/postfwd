@@ -1,3 +1,21 @@
+postfwd (1.35-4) unstable; urgency=medium
+
+  * [e8799d3] travis-ci: don't install build-deps manual
+  * [c86c540] travis-ci: build package with dpkg-buildpackage
+  * [07e9eeb] travis-ci: Initial support for uploading releases to github
+  * [231a90f] Merging upstream changes of github-release.sh
+  * [b832cd0] Updating copyright and author of debian/bin/github-release.sh
+  * [5e353b5] debian/control: reformating with warp-and-sort
+  * [3862572] Reformating with warp-and-sort the rest of debian/
+  * [d4687ee] travis-ci: grab actual used upstream version
+  * [4d0d01d] travis-ci: Adding required arguments for trusty
+  * [11da7ca] travis-ci: automatically install dependencies
+  * [7ad8c99] d/control: Bump Standards-Version to 3.9.8, no changes needed
+  * [80b011c] d/control: Depend on lsb-base
+  * [583a10d] travis-ci: Make use of travis.d.n
+
+ -- Jan Wagner <waja@cyconet.org>  Mon, 05 Dec 2016 11:50:27 +0100
+
 postfwd (1.35-3) unstable; urgency=medium
 
   * [965e0d7] Remove shiped html files from binaries
