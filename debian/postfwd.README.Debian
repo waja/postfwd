@@ -55,7 +55,8 @@ Samples can be taken into the logfile when starting the daemon with "-vv"
 --------------------
 
 In order to avoid the startup of the daemon on an unconfigured machine,
-automatic startup, on boot, is disabled by default. To enable it just edit the
+automatic startup, on boot, is disabled by default. To enable it just run
+'systemctl enable postfwd.service', when still using SysVinit edit the
 file /etc/default/postfwd and set the "startup" variable to 1.
 
 4. CHOOSING WHICH POSTFWD VERSION TO USE

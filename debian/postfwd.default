@@ -1,6 +1,6 @@
 # Global options for postfwd(8).
 
-# Set to '1' to enable startup (daemon mode)
+# Set to '1' to enable startup (daemon mode), doesn't affect systemd
 STARTUP=0
 
 # Config file
