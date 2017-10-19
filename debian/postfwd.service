@@ -1,0 +1,15 @@
+[Unit]
+Description=Postfix firewall daemon
+After=network.target
+Before=postfix.service
+
+[Service]
+Environment=PIDFILE=/var/run/postfwd.pid
+EnvironmentFile=-/etc/default/postfwd
+ExecStart=/usr/sbin/postfwd $ARGS --daemon --file $CONF --interface $INET --port $PORT --user $RUNAS --group $RUNAS --pidfile $PIDFILE
+ExecStop=/usr/sbin/postfwd --file $CONF --pidfile $PIDFILE --kill
+ExecReload=/usr/sbin/postfwd --file $CONF --pidfile $PIDFILE --reload
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
