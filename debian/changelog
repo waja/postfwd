@@ -1,8 +1,13 @@
-postfwd (1.35-5) UNRELEASED; urgency=medium
+postfwd (1.35-5) unstable; urgency=medium
 
-  * UNRELEASED
+  * [217213b] Adding systemd unit file
+  * [8e419b4] Add a bit documentation about systemd (and sysvinit)
+  * [62139a7] travis-ci: Use xenial image
+  * [ac0ac42] d/control: Bump Standards-Version to 4.3.0, no changes needed
+  * [e438455] d/postfwd.postrm: detect existens of command by which and
+    not 'test -x'
 
- -- Jan Wagner <waja@cyconet.org>  Mon, 05 Dec 2016 11:54:09 +0100
+ -- Jan Wagner <waja@cyconet.org>  Thu, 24 Jan 2019 09:37:19 +0100
 
 postfwd (1.35-4) unstable; urgency=medium
 
