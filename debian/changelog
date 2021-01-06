@@ -1,8 +1,11 @@
-postfwd (1.35-6) UNRELEASED; urgency=medium
+postfwd (1.35-6) unstable; urgency=medium
 
-  * 
+  * [1446da0] Fix initscript (Closes: #942414)
+  * [3abd7a4] Bump Standards-Version to 4.5.1.0, no changes needed
+  * [27de180] Adding Github CI
+  * [a282d29] d/control: Raise compat level to 12
 
- -- Jan Wagner <waja@cyconet.org>  Thu, 24 Jan 2019 09:45:47 +0100
+ -- Jan Wagner <waja@cyconet.org>  Wed, 06 Jan 2021 21:49:07 +0100
 
 postfwd (1.35-5) unstable; urgency=medium
 
