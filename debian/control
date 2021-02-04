@@ -3,7 +3,7 @@ Section: mail
 Priority: optional
 Maintainer: Jan Wagner <waja@cyconet.org>
 Build-Depends: debhelper-compat (= 12), html2text
-Homepage: http://www.postfwd.org/
+Homepage: https://www.postfwd.org/
 Vcs-Browser: https://gitlab.uncompleted.org/debian/postfwd
 Vcs-Git: https://gitlab.uncompleted.org/debian/postfwd.git
 Standards-Version: 4.5.1.0
