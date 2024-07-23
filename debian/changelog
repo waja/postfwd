@@ -1,8 +1,8 @@
-postfwd (1.35-9) UNRELEASED; urgency=medium
+postfwd (1.35-9) unstable; urgency=medium
 
-  * 
+  * [42f4738] d/postfwd.init: Adding "--name" to start-stop-daemon (Closes: #1059512), Thanks Matus UHLAR
 
- -- Jan Wagner <waja@cyconet.org>  Mon, 23 Jan 2023 12:43:03 +0000
+ -- Jan Wagner <waja@cyconet.org>  Tue, 23 Jul 2024 06:32:19 +0000
 
 postfwd (1.35-8) unstable; urgency=medium
 
