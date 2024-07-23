@@ -80,7 +80,7 @@ case "$1" in
 	;;
   stop)
 	echo -n "Stopping $DESC: "
-	start-stop-daemon --stop --quiet --oknodoi --name $PROCNAME --pidfile $PIDFILE && rm -rf $PIDFILE
+	start-stop-daemon --stop --quiet --oknodoi --name $PROCNAME --pidfile $PIDFILE --user=$RUNAS && rm -rf $PIDFILE
         echo "$NAME."
 	;;
   reload)
