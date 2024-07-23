@@ -20,6 +20,7 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 NAME=postfwd
 DAEMON=/usr/sbin/${NAME}
 PIDFILE=/var/run/$NAME.pid
+PROCNAME=/usr/sbin/postf
 DESC=postfwd
 
 . /lib/lsb/init-functions
@@ -79,7 +80,7 @@ case "$1" in
 	;;
   stop)
 	echo -n "Stopping $DESC: "
-	start-stop-daemon --stop --quiet --oknodo --pidfile $PIDFILE && rm -rf $PIDFILE
+	start-stop-daemon --stop --quiet --oknodoi --name $PROCNAME --pidfile $PIDFILE && rm -rf $PIDFILE
         echo "$NAME."
 	;;
   reload)
