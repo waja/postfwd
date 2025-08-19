@@ -4,8 +4,8 @@ Priority: optional
 Maintainer: Jan Wagner <waja@cyconet.org>
 Build-Depends: debhelper-compat (= 13), html2text
 Homepage: https://www.postfwd.org/
-Vcs-Browser: https://gitlab.uncompleted.org/debian/postfwd
-Vcs-Git: https://gitlab.uncompleted.org/debian/postfwd.git
+Vcs-Browser: https://salsa.debian.org/debian/postfwd
+Vcs-Git: https://salsa.debian.org/debian/postfwd.git
 Standards-Version: 4.6.2
 Rules-Requires-Root: no
 
